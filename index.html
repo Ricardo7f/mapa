@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Mapa interativo dos 75 municípios de Sergipe organizados pelas regionais Norte, Sertaneja, Metropolitana e Sul, com busca, zoom e navegação por município.">
+<title>Regionais de Sergipe · Mapa Interativo</title>
+<style>
+  :root{
+    --canvas:#0f2027; --canvas-grid:rgba(255,255,255,0.05);
+    --panel:#f6f3ea; --panel-2:#ffffff; --ink:#20241f; --ink-soft:#6b6f63;
+    --line:#e1ddcd; --line-strong:#cfc9b4; --accent:#e8b23d; --focus:#2f6fed;
+    --norte:#5b8dbe; --sertaneja:#5c9468; --metro:#d2933f; --sul:#8ca05a; --sem:#9aa39d;
+    --header-h:64px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:#0b0d0a; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; min-height:100vh;
+  }
+  :focus-visible{ outline:2px solid var(--focus); outline-offset:2px; border-radius:4px; }
+
+  header{
+    height:var(--header-h); flex:none; display:flex; align-items:center; justify-content:space-between;
+    padding:0 22px; background:#0f2027; border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .brand{ display:flex; align-items:baseline; gap:10px; color:#f5f2e8; }
+  .brand .mark{
+    width:26px; height:26px; border-radius:50%; background:conic-gradient(from 200deg, var(--norte), var(--sertaneja), var(--metro), var(--sul), var(--norte));
+    flex:none; box-shadow:inset 0 0 0 2px rgba(255,255,255,0.25);
+  }
+  .brand h1{ font-family:Georgia,'Iowan Old Style','Palatino Linotype',serif; font-size:19px; font-weight:600; margin:0; letter-spacing:-0.01em; }
+  .brand .tagline{ font-size:11.5px; color:#9aa39d; font-style:italic; }
+  header .credit{ font-size:11px; color:#75807a; white-space:nowrap; }
+  @media (max-width:640px){
+    .brand .tagline, header .credit{ display:none; }
+    header{ padding:0 14px; }
+    .brand h1{ font-size:16.5px; }
+  }
+
+  .app{ flex:1; display:flex; min-height:0; }
+  @media (max-width:880px){ .app{ flex-direction:column; } }
+
+  aside{ width:340px; flex:none; background:var(--panel); border-right:1px solid var(--line-strong); display:flex; flex-direction:column; min-height:0; }
+  @media (max-width:880px){ aside{ width:100%; border-right:none; border-top:1px solid var(--line-strong); order:2; } }
+
+  .side-section{ padding:16px 18px; border-bottom:1px solid var(--line); flex:none; }
+  .side-section-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; }
+  .clear-all{
+    all:unset; cursor:pointer; font-size:11px; color:var(--ink-soft); text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .clear-all:hover{ color:var(--ink); }
+  .clear-all[hidden]{ display:none; }
+
+  .search-row{ position:relative; margin-top:8px; }
+  .search-row input{
+    width:100%; padding:9px 34px 9px 12px; border-radius:8px; border:1px solid var(--line-strong);
+    background:var(--panel-2); color:var(--ink); font-size:13.5px; font-family:inherit; outline:none;
+  }
+  .search-row input:focus{ border-color:var(--ink); }
+  .search-row svg{ position:absolute; right:11px; top:50%; transform:translateY(-50%); width:14px; height:14px; opacity:.45; pointer-events:none; }
+
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .chip{
+    display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:6px;
+    border:1px solid var(--line-strong); background:var(--panel-2); cursor:pointer; font-size:12px; color:var(--ink-soft);
+  }
+  .chip .dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .chip .n{ color:var(--ink-soft); font-variant-numeric:tabular-nums; }
+  .chip.active{ border-color:var(--ink); color:var(--ink); font-weight:600; background:#fff; }
+
+  .selection-strip{
+    display:flex; align-items:center; gap:10px; padding:0 18px; height:0; overflow:hidden; opacity:0;
+    background:#eae5d4; border-bottom:1px solid var(--line-strong); flex:none;
+    transition:height .18s ease, opacity .18s ease, padding .18s ease;
+  }
+  .selection-strip.show{ height:52px; opacity:1; padding:11px 18px; }
+  .selection-strip .sd{ width:11px; height:11px; border-radius:50%; flex:none; box-shadow:0 0 0 3px rgba(230,57,75,0.18); background:#e6394b; }
+  .selection-strip .st{ font-size:13px; line-height:1.3; flex:1; min-width:0; }
+  .selection-strip .st b{ display:block; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .selection-strip .st span{ color:var(--ink-soft); font-size:11.5px; }
+  .selection-strip button{ all:unset; cursor:pointer; color:var(--ink-soft); font-size:16px; line-height:1; padding:2px 6px; flex:none; }
+  .selection-strip button:hover{ color:var(--ink); }
+
+  .index-head{
+    display:flex; justify-content:space-between; align-items:baseline; padding:12px 18px 6px;
+    font-size:11px; letter-spacing:0.04em; text-transform:uppercase; color:var(--ink-soft); flex:none;
+  }
+  .index-head b{ color:var(--ink); font-weight:700; }
+
+  .index{ list-style:none; margin:0; padding:0 8px 14px; overflow-y:auto; flex:1; min-height:120px; }
+  @media (max-width:880px){ .index{ max-height:300px; } }
+
+  .idx-group[hidden]{ display:none; }
+  .idx-group-head{
+    position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px;
+    background:var(--panel); padding:9px 10px 5px; font-size:11.5px; font-weight:700; color:var(--ink-soft);
+  }
+  .idx-group-head .idx-dot{ width:8px; height:8px; }
+  .idx-group-count{ margin-left:auto; font-weight:400; font-variant-numeric:tabular-nums; }
+  .idx-group-rows{ list-style:none; margin:0; padding:0 0 6px; }
+
+  .idx-row{
+    display:flex; align-items:center; gap:9px; padding:7px 10px 7px 20px; border-radius:6px; cursor:pointer; font-size:13.5px;
+  }
+  .idx-row[hidden]{ display:none; }
+  .idx-row:hover{ background:var(--panel-2); }
+  .idx-row.selected{ background:#fff; box-shadow:inset 0 0 0 1px #e6394b; font-weight:700; color:#7a0f1c; }
+  .idx-dot{ width:8px; height:8px; border-radius:50%; flex:none; }
+  .idx-name{ flex:1; }
+  .empty-note{ padding:16px 12px; color:var(--ink-soft); font-size:13px; display:none; }
+  .empty-note.show{ display:block; }
+
+  .legend-foot{ flex:none; padding:12px 18px 16px; border-top:1px solid var(--line); font-size:11px; color:var(--ink-soft); line-height:1.6; }
+  .dist-bar{ display:flex; width:100%; height:7px; border-radius:4px; overflow:hidden; margin:10px 0 8px; }
+  .dist-bar span{ height:100%; }
+
+  .map-area{ flex:1; position:relative; background:var(--canvas); min-height:0; overflow:hidden; }
+  @media (max-width:880px){ .map-area{ height:56vh; order:1; } }
+  .map-area::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    box-shadow:inset 0 0 90px rgba(0,0,0,0.55);
+  }
+  #mapSvg{ width:100%; height:100%; display:block; touch-action:none; cursor:grab; }
+  #mapSvg.dragging{ cursor:grabbing; }
+  #zoomG{ transition:transform .28s cubic-bezier(.2,.7,.3,1); }
+  #zoomG.notransition{ transition:none; }
+
+  path.mun{ transition:opacity .15s ease, filter .15s ease, fill .12s ease; cursor:pointer; }
+  path.mun.dim{ opacity:.14; }
+  path.mun.hovered{ filter:brightness(1.18); }
+  path.mun.selected{ fill:#e6394b !important; stroke:#7a0f1c !important; stroke-width:1.6px !important; filter:drop-shadow(0 0 5px rgba(230,57,75,0.85)); }
+  .region-border.dim{ opacity:.12; }
+
+  .mun-tag{ opacity:0; transition:opacity .15s ease; pointer-events:none; }
+  .mun-tag.show{ opacity:1; }
+  .mun-tag.dim{ opacity:.1 !important; }
+  .mun-dot{ fill:#fbf7ea; }
+  .mun-label{ font-size:5.4px; fill:#fbf7ea; paint-order:stroke; stroke:rgba(10,16,12,0.65); stroke-width:1.6px; stroke-linejoin:round; }
+
+  .map-controls{ position:absolute; right:16px; bottom:16px; display:flex; flex-direction:column; gap:6px; z-index:5; }
+  .map-controls button{
+    width:30px; height:30px; border-radius:6px; border:1px solid rgba(255,255,255,0.18); background:rgba(15,32,39,0.8);
+    color:#f5f2e8; font-size:16px; cursor:pointer; backdrop-filter:blur(2px);
+  }
+  .map-controls button:hover{ background:rgba(15,32,39,0.95); }
+
+  .map-legend{
+    position:absolute; left:16px; bottom:16px; z-index:5; background:rgba(15,32,39,0.82); border:1px solid rgba(255,255,255,0.12);
+    border-radius:8px; padding:10px 13px; backdrop-filter:blur(2px); display:flex; flex-direction:column; gap:5px;
+  }
+  .map-legend div{ display:flex; align-items:center; gap:7px; font-size:11px; color:#e7e4d8; }
+  .map-legend .sw{ width:10px; height:10px; border-radius:2px; flex:none; }
+
+  .map-hint{
+    position:absolute; left:16px; top:14px; z-index:5; font-size:11px; color:rgba(245,242,232,0.55);
+    background:rgba(15,32,39,0.6); padding:5px 10px; border-radius:5px; pointer-events:none;
+  }
+
+  .compass{ position:absolute; right:16px; top:14px; z-index:5; opacity:.85; width:34px; height:34px; }
+  .scalebar{
+    position:absolute; right:16px; bottom:100px; z-index:5; font-size:10px; color:#e7e4d8;
+    background:rgba(15,32,39,0.6); padding:5px 9px; border-radius:5px; display:flex; align-items:center; gap:6px;
+  }
+  .scalebar i{ display:block; height:3px; background:#e7e4d8; transition:width .15s ease; }
+
+  footer{ flex:none; padding:8px 22px; font-size:10.5px; color:#6b7268; background:#0f2027; border-top:1px solid rgba(255,255,255,0.06); }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="mark"></span>
+      <div><h1>Regionais de Sergipe</h1></div>
+      <span class="tagline">75 municípios · 4 regionais</span>
+    </div>
+    <span class="credit">base cartográfica IBGE</span>
+  </header>
+
+  <div class="app">
+
+    <aside>
+      <div class="side-section">
+        <div class="side-section-head">
+          <span></span>
+          <button class="clear-all" id="clearAll" hidden>limpar tudo</button>
+        </div>
+        <div class="search-row">
+          <input type="text" id="searchInput" placeholder="Buscar município..." autocomplete="off" aria-label="Buscar município">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <div class="chip-row" id="chips"></div>
+      </div>
+
+      <div class="selection-strip" id="selStrip">
+        <span class="sd" id="selDot"></span>
+        <span class="st"><b id="selName"></b><span id="selRegion"></span></span>
+        <button id="selClear" title="limpar seleção" aria-label="limpar seleção">&times;</button>
+      </div>
+
+      <div class="index-head"><span>Municípios <b id="idxCount">75</b></span><span id="idxFilterLabel"></span></div>
+      <ul class="index" id="indexList">
+<li class="idx-group" data-group="norte">
+        <div class="idx-group-head"><span class="idx-dot" style="background:#5b8dbe"></span>Regional Norte<span class="idx-group-count">14</span></div>
+        <ul class="idx-group-rows">
+<li class="idx-row" data-name="Canindé de São Francisco" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Canindé de São Francisco</span></li>
+<li class="idx-row" data-name="Carira" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Carira</span></li>
+<li class="idx-row" data-name="Frei Paulo" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Frei Paulo</span></li>
+<li class="idx-row" data-name="Moita Bonita" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Moita Bonita</span></li>
+<li class="idx-row" data-name="Monte Alegre de Sergipe" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Monte Alegre de Sergipe</span></li>
+<li class="idx-row" data-name="Nossa Senhora Aparecida" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Nossa Senhora Aparecida</span></li>
+<li class="idx-row" data-name="Nossa Senhora da Glória" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Nossa Senhora da Glória</span></li>
+<li class="idx-row" data-name="Nossa Senhora das Dores" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Nossa Senhora das Dores</span></li>
+<li class="idx-row" data-name="Pedra Mole" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Pedra Mole</span></li>
+<li class="idx-row" data-name="Pinhão" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Pinhão</span></li>
+<li class="idx-row" data-name="Porto da Folha" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Porto da Folha</span></li>
+<li class="idx-row" data-name="Poço Redondo" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Poço Redondo</span></li>
+<li class="idx-row" data-name="Ribeirópolis" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Ribeirópolis</span></li>
+<li class="idx-row" data-name="São Miguel do Aleixo" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">São Miguel do Aleixo</span></li>
+        </ul>
+      </li>
+<li class="idx-group" data-group="sertaneja">
+        <div class="idx-group-head"><span class="idx-dot" style="background:#5c9468"></span>Regional Sertaneja<span class="idx-group-count">22</span></div>
+        <ul class="idx-group-rows">
+<li class="idx-row" data-name="Amparo de São Francisco" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Amparo de São Francisco</span></li>
+<li class="idx-row" data-name="Aquidabã" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Aquidabã</span></li>
+<li class="idx-row" data-name="Brejo Grande" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Brejo Grande</span></li>
+<li class="idx-row" data-name="Canhoba" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Canhoba</span></li>
+<li class="idx-row" data-name="Cedro de São João" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Cedro de São João</span></li>
+<li class="idx-row" data-name="Cumbe" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Cumbe</span></li>
+<li class="idx-row" data-name="Feira Nova" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Feira Nova</span></li>
+<li class="idx-row" data-name="Gararu" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Gararu</span></li>
+<li class="idx-row" data-name="Gracho Cardoso" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Gracho Cardoso</span></li>
+<li class="idx-row" data-name="Ilha das Flores" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Ilha das Flores</span></li>
+<li class="idx-row" data-name="Itabi" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Itabi</span></li>
+<li class="idx-row" data-name="Japaratuba" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Japaratuba</span></li>
+<li class="idx-row" data-name="Japoatã" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Japoatã</span></li>
+<li class="idx-row" data-name="Malhada dos Bois" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Malhada dos Bois</span></li>
+<li class="idx-row" data-name="Muribeca" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Muribeca</span></li>
+<li class="idx-row" data-name="Neópolis" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Neópolis</span></li>
+<li class="idx-row" data-name="Nossa Senhora de Lourdes" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Nossa Senhora de Lourdes</span></li>
+<li class="idx-row" data-name="Pacatuba" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Pacatuba</span></li>
+<li class="idx-row" data-name="Propriá" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Propriá</span></li>
+<li class="idx-row" data-name="Santana do São Francisco" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Santana do São Francisco</span></li>
+<li class="idx-row" data-name="São Francisco" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">São Francisco</span></li>
+<li class="idx-row" data-name="Telha" data-region="sertaneja" tabindex="0" role="button"><span class="idx-dot" style="background:#5c9468"></span><span class="idx-name">Telha</span></li>
+        </ul>
+      </li>
+<li class="idx-group" data-group="metro">
+        <div class="idx-group-head"><span class="idx-dot" style="background:#d2933f"></span>Regional Metropolitana<span class="idx-group-count">16</span></div>
+        <ul class="idx-group-rows">
+<li class="idx-row" data-name="Aracaju" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Aracaju</span></li>
+<li class="idx-row" data-name="Barra dos Coqueiros" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Barra dos Coqueiros</span></li>
+<li class="idx-row" data-name="Carmópolis" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Carmópolis</span></li>
+<li class="idx-row" data-name="Divina Pastora" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Divina Pastora</span></li>
+<li class="idx-row" data-name="General Maynard" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">General Maynard</span></li>
+<li class="idx-row" data-name="Laranjeiras" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Laranjeiras</span></li>
+<li class="idx-row" data-name="Malhador" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Malhador</span></li>
+<li class="idx-row" data-name="Maruim" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Maruim</span></li>
+<li class="idx-row" data-name="Nossa Senhora do Socorro" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Nossa Senhora do Socorro</span></li>
+<li class="idx-row" data-name="Pirambu" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Pirambu</span></li>
+<li class="idx-row" data-name="Riachuelo" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Riachuelo</span></li>
+<li class="idx-row" data-name="Rosário do Catete" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Rosário do Catete</span></li>
+<li class="idx-row" data-name="Santa Rosa de Lima" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Santa Rosa de Lima</span></li>
+<li class="idx-row" data-name="Santo Amaro das Brotas" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Santo Amaro das Brotas</span></li>
+<li class="idx-row" data-name="Siriri" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">Siriri</span></li>
+<li class="idx-row" data-name="São Cristóvão" data-region="metro" tabindex="0" role="button"><span class="idx-dot" style="background:#d2933f"></span><span class="idx-name">São Cristóvão</span></li>
+        </ul>
+      </li>
+<li class="idx-group" data-group="sul">
+        <div class="idx-group-head"><span class="idx-dot" style="background:#8ca05a"></span>Regional Sul<span class="idx-group-count">22</span></div>
+        <ul class="idx-group-rows">
+<li class="idx-row" data-name="Arauá" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Arauá</span></li>
+<li class="idx-row" data-name="Areia Branca" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Areia Branca</span></li>
+<li class="idx-row" data-name="Boquim" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Boquim</span></li>
+<li class="idx-row" data-name="Campo do Brito" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Campo do Brito</span></li>
+<li class="idx-row" data-name="Cristinápolis" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Cristinápolis</span></li>
+<li class="idx-row" data-name="Estância" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Estância</span></li>
+<li class="idx-row" data-name="Indiaroba" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Indiaroba</span></li>
+<li class="idx-row" data-name="Itabaiana" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Itabaiana</span></li>
+<li class="idx-row" data-name="Itabaianinha" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Itabaianinha</span></li>
+<li class="idx-row" data-name="Itaporanga d'Ajuda" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Itaporanga d'Ajuda</span></li>
+<li class="idx-row" data-name="Lagarto" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Lagarto</span></li>
+<li class="idx-row" data-name="Macambira" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Macambira</span></li>
+<li class="idx-row" data-name="Pedrinhas" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Pedrinhas</span></li>
+<li class="idx-row" data-name="Poço Verde" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Poço Verde</span></li>
+<li class="idx-row" data-name="Riachão do Dantas" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Riachão do Dantas</span></li>
+<li class="idx-row" data-name="Salgado" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Salgado</span></li>
+<li class="idx-row" data-name="Santa Luzia do Itanhy" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Santa Luzia do Itanhy</span></li>
+<li class="idx-row" data-name="Simão Dias" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Simão Dias</span></li>
+<li class="idx-row" data-name="São Domingos" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">São Domingos</span></li>
+<li class="idx-row" data-name="Tobias Barreto" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Tobias Barreto</span></li>
+<li class="idx-row" data-name="Tomar do Geru" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Tomar do Geru</span></li>
+<li class="idx-row" data-name="Umbaúba" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Umbaúba</span></li>
+        </ul>
+      </li>
+<li class="idx-group" data-group="sem">
+        <div class="idx-group-head"><span class="idx-dot" style="background:#9aa39d"></span>Sem operação<span class="idx-group-count">1</span></div>
+        <ul class="idx-group-rows">
+<li class="idx-row" data-name="Capela" data-region="sem" tabindex="0" role="button"><span class="idx-dot" style="background:#9aa39d"></span><span class="idx-name">Capela</span></li>
+        </ul>
+      </li>
+      </ul>
+      <p class="empty-note" id="emptyNote">Nenhum município encontrado.</p>
+
+      <div class="legend-foot">
+        <div class="dist-bar" id="distBar" title="Distribuição de municípios por regional"></div>
+      </div>
+    </aside>
+
+    <div class="map-area" id="mapArea">
+      <span class="map-hint">arraste/pinça para mover e ampliar · "/" busca</span>
+
+      <svg id="mapSvg" viewBox="0 0 720 807" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M40 0 L0 0 0 40" fill="none" stroke="var(--canvas-grid)" stroke-width="1"/>
+          </pattern>
+        </defs>
+        <rect x="-2000" y="-2000" width="6000" height="6000" fill="url(#grid)"/>
+        <g id="zoomG">
+          <g stroke-linejoin="round">
+<path class="mun" data-name="Amparo de São Francisco" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 504.54,249.09 L 505.25,249.68 L 506.16,249.15 L 507.28,250.58 L 507.31,250.62 L 510.08,252.74 L 518.63,254.64 L 521.21,255.41 L 512.82,266.18 L 498.13,286.22 L 499.26,261.89 L 499.35,260.38 L 501.32,246.39 L 504.54,249.09 Z"/>
+<path class="mun" data-name="Aquidabã" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 456.26,268.87 L 471.14,272.57 L 479.26,267.56 L 483.40,274.31 L 487.78,277.63 L 490.95,287.26 L 491.60,289.26 L 492.50,288.79 L 498.13,286.22 L 503.42,284.46 L 494.84,300.79 L 501.69,304.38 L 500.45,305.16 L 493.46,309.55 L 473.91,314.16 L 472.94,317.54 L 472.82,317.95 L 472.79,318.08 L 470.67,325.42 L 470.48,325.37 L 467.75,324.74 L 466.68,323.10 L 464.69,324.11 L 463.02,323.58 L 457.99,328.56 L 454.35,324.16 L 449.07,328.01 L 448.39,330.57 L 445.96,331.01 L 444.26,335.07 L 440.81,335.76 L 441.47,336.64 L 439.69,339.32 L 437.05,339.40 L 436.25,340.73 L 433.60,338.96 L 431.46,341.55 L 430.25,341.07 L 431.03,340.24 L 430.05,340.24 L 427.63,335.43 L 425.77,335.96 L 425.96,336.95 L 424.30,336.52 L 424.45,338.46 L 423.27,338.16 L 423.63,336.61 L 421.18,338.61 L 420.88,337.34 L 419.02,337.93 L 418.82,336.46 L 420.98,335.22 L 419.38,332.19 L 420.84,331.18 L 417.16,328.35 L 417.78,326.19 L 416.57,325.41 L 422.51,321.84 L 422.41,319.12 L 420.19,316.05 L 423.07,314.46 L 422.37,310.80 L 421.96,309.14 L 423.22,308.84 L 426.02,306.17 L 426.59,303.97 L 426.39,299.16 L 424.91,297.07 L 425.53,293.37 L 422.62,291.41 L 421.86,289.36 L 422.19,284.47 L 424.75,277.73 L 427.11,276.08 L 427.19,276.01 L 426.89,273.58 L 420.67,271.22 L 421.46,262.97 L 421.53,262.94 L 456.07,268.83 L 456.22,268.86 L 456.26,268.87 Z"/>
+<path class="mun" data-name="Aracaju" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 449.87,524.34 L 452.36,529.00 L 456.14,524.39 L 461.00,524.38 L 464.22,525.65 L 462.74,531.54 L 461.17,535.41 L 461.59,543.43 L 461.85,552.37 L 463.92,558.49 L 467.72,561.43 L 456.75,574.14 L 429.27,614.19 L 420.62,631.64 L 419.51,633.82 L 417.33,631.82 L 415.93,629.69 L 417.76,624.67 L 417.81,618.79 L 416.17,614.17 L 417.45,609.36 L 414.04,606.16 L 413.46,603.79 L 416.62,599.55 L 419.85,595.28 L 424.29,596.60 L 426.41,598.71 L 439.72,563.53 L 440.79,560.71 L 443.80,552.78 L 440.35,544.91 L 437.88,539.29 L 439.69,535.97 L 438.40,533.88 L 439.05,532.52 L 441.43,531.90 L 439.18,528.94 L 441.52,528.35 L 446.68,523.97 L 449.87,524.34 Z"/>
+<path class="mun" data-name="Arauá" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 273.62,643.54 L 275.13,644.25 L 276.20,643.06 L 277.64,645.42 L 280.15,645.42 L 281.73,648.71 L 279.75,656.81 L 281.60,660.01 L 284.20,659.76 L 284.39,661.61 L 282.61,663.59 L 283.00,665.42 L 284.70,665.51 L 283.91,670.00 L 284.95,671.47 L 288.01,674.11 L 288.36,676.60 L 291.11,677.30 L 287.79,682.85 L 285.91,683.88 L 284.67,684.43 L 285.02,686.95 L 282.62,689.06 L 275.44,688.87 L 267.17,695.71 L 263.88,696.98 L 260.34,696.63 L 256.62,703.01 L 255.44,702.80 L 254.17,701.66 L 253.66,701.20 L 250.10,698.00 L 233.64,683.19 L 233.62,680.27 L 233.56,669.85 L 232.84,666.84 L 231.21,666.33 L 230.38,664.12 L 234.72,656.72 L 238.25,657.29 L 241.55,656.03 L 243.97,657.06 L 251.16,655.43 L 253.99,656.17 L 257.92,654.84 L 258.22,650.89 L 261.76,648.23 L 265.09,645.72 L 265.65,645.29 L 266.17,644.90 L 276.44,637.17 L 275.37,639.53 L 272.84,641.62 L 273.62,643.54 Z"/>
+<path class="mun" data-name="Areia Branca" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 360.19,477.03 L 361.19,477.95 L 367.40,474.05 L 369.51,471.28 L 373.38,470.80 L 374.42,472.57 L 373.59,473.73 L 373.56,477.17 L 377.49,480.53 L 376.96,482.31 L 387.13,492.03 L 377.01,499.64 L 373.17,502.53 L 360.66,511.94 L 360.40,512.13 L 360.51,512.15 L 360.40,513.02 L 356.46,512.61 L 353.52,514.91 L 351.91,518.23 L 348.29,518.77 L 343.79,517.73 L 339.40,519.78 L 329.12,516.76 L 327.87,512.14 L 328.70,509.88 L 329.30,509.22 L 331.86,503.79 L 333.06,501.27 L 338.65,489.44 L 339.12,488.45 L 343.84,478.49 L 343.92,478.32 L 347.53,475.09 L 350.67,473.00 L 353.81,470.90 L 355.19,472.69 L 360.55,474.41 L 361.60,474.57 L 362.79,475.06 L 361.65,475.47 L 360.19,477.03 Z"/>
+<path class="mun" data-name="Barra dos Coqueiros" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 524.07,478.16 L 525.30,479.22 L 528.24,478.59 L 530.95,479.04 L 509.29,502.28 L 501.96,510.14 L 500.75,511.47 L 493.19,520.87 L 480.43,537.53 L 472.82,547.79 L 469.98,552.43 L 469.29,553.56 L 467.56,556.72 L 467.72,561.43 L 463.92,558.49 L 461.85,552.37 L 461.59,543.43 L 461.17,535.41 L 462.74,531.54 L 467.05,531.95 L 468.47,529.02 L 471.31,528.12 L 471.60,524.16 L 473.96,524.35 L 475.11,522.29 L 477.90,522.81 L 479.16,521.65 L 478.23,519.92 L 479.13,517.97 L 481.16,519.66 L 483.49,518.41 L 484.04,516.50 L 481.61,513.84 L 483.00,512.10 L 483.71,513.51 L 485.10,512.22 L 488.75,512.54 L 490.10,507.47 L 491.94,506.54 L 491.83,503.52 L 493.13,503.54 L 496.60,499.59 L 499.59,498.64 L 500.37,495.36 L 503.45,496.57 L 503.98,495.29 L 504.50,495.89 L 514.29,489.87 L 519.97,480.63 L 522.61,477.32 L 524.07,478.16 Z"/>
+<path class="mun" data-name="Boquim" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 283.12,594.65 L 279.25,610.88 L 274.05,627.62 L 275.79,627.93 L 278.45,628.35 L 276.54,630.18 L 277.50,632.48 L 273.46,632.51 L 276.44,637.17 L 266.17,644.90 L 265.65,645.29 L 265.09,645.72 L 261.76,648.23 L 258.22,650.89 L 254.65,649.66 L 254.49,649.56 L 253.66,650.39 L 242.09,649.10 L 241.78,648.94 L 231.43,643.39 L 231.12,643.25 L 227.97,645.83 L 226.17,642.17 L 223.35,638.83 L 218.22,646.88 L 219.89,643.71 L 219.31,642.54 L 217.68,640.47 L 221.85,637.09 L 230.30,630.37 L 230.33,630.34 L 239.79,622.00 L 238.78,615.61 L 244.46,605.60 L 248.15,607.96 L 250.23,605.96 L 252.45,604.15 L 250.79,602.00 L 251.39,601.11 L 248.71,600.06 L 248.77,600.03 L 269.75,589.81 L 267.97,587.84 L 268.51,584.36 L 275.64,578.71 L 276.35,578.15 L 282.29,573.43 L 283.12,594.65 Z"/>
+<path class="mun" data-name="Brejo Grande" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 697.79,392.43 L 697.77,395.47 L 695.45,394.64 L 684.66,395.94 L 661.87,402.40 L 666.66,398.72 L 661.23,392.88 L 629.64,387.91 L 639.98,381.96 L 650.81,375.25 L 656.18,368.14 L 662.02,366.03 L 666.86,364.54 L 664.83,359.63 L 665.64,359.22 L 665.65,359.22 L 674.41,353.18 L 676.86,353.41 L 681.73,357.39 L 683.82,357.55 L 686.56,360.12 L 691.36,370.85 L 695.82,381.19 L 695.87,381.39 L 700.00,388.15 L 700.00,389.54 L 697.79,392.43 Z"/>
+<path class="mun" data-name="Campo do Brito" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 271.30,459.67 L 275.76,461.78 L 275.80,461.77 L 280.42,460.71 L 281.71,458.53 L 283.79,458.45 L 293.43,458.30 L 293.62,460.27 L 295.18,460.89 L 300.36,462.85 L 303.05,466.67 L 307.04,467.64 L 308.95,470.76 L 311.30,476.99 L 311.92,481.67 L 311.73,486.40 L 312.40,487.74 L 311.09,488.93 L 314.79,491.46 L 315.27,493.78 L 314.54,494.76 L 313.42,493.48 L 312.40,495.39 L 314.38,501.09 L 318.84,511.73 L 320.45,511.43 L 321.54,511.15 L 329.30,509.22 L 328.70,509.88 L 314.84,525.22 L 309.64,530.98 L 308.52,529.92 L 309.26,527.18 L 304.21,519.93 L 301.80,522.28 L 299.77,521.97 L 300.67,515.41 L 297.90,514.29 L 297.85,512.51 L 295.85,511.65 L 294.46,512.45 L 290.93,509.34 L 289.20,509.81 L 284.66,507.42 L 286.34,504.89 L 284.67,503.80 L 284.74,503.75 L 287.43,501.67 L 287.68,499.69 L 285.70,500.34 L 286.30,497.37 L 285.24,497.96 L 282.62,496.69 L 283.31,494.33 L 280.81,493.63 L 280.39,494.47 L 277.61,492.76 L 275.36,494.04 L 272.10,492.20 L 271.13,491.04 L 269.36,488.10 L 270.56,485.56 L 271.63,484.17 L 269.91,481.98 L 267.78,479.25 L 261.43,470.68 L 262.01,467.23 L 260.51,463.12 L 258.51,461.26 L 262.27,455.60 L 265.37,457.21 L 266.42,459.11 L 271.30,459.67 Z"/>
+<path class="mun" data-name="Canhoba" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 502.85,240.72 L 506.16,249.15 L 505.25,249.68 L 504.54,249.09 L 501.32,246.39 L 499.35,260.38 L 499.26,261.89 L 498.13,286.22 L 492.50,288.79 L 491.60,289.26 L 490.95,287.26 L 487.78,277.63 L 483.40,274.31 L 479.26,267.56 L 471.14,272.57 L 456.26,268.87 L 456.22,268.86 L 456.07,268.83 L 421.53,262.94 L 423.44,262.30 L 444.19,255.30 L 453.48,252.17 L 456.94,248.73 L 460.06,247.88 L 461.16,251.02 L 462.44,250.87 L 462.38,252.55 L 465.43,250.78 L 466.81,246.63 L 471.36,242.36 L 474.24,240.16 L 480.82,232.30 L 482.69,231.70 L 494.28,227.97 L 494.88,229.15 L 495.41,230.18 L 496.78,233.54 L 502.85,240.72 Z"/>
+<path class="mun" data-name="Canindé de São Francisco" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 126.07,27.12 L 140.45,32.68 L 148.90,29.15 L 151.83,33.13 L 167.97,44.06 L 169.69,45.50 L 171.32,49.84 L 174.75,48.50 L 176.78,49.09 L 180.88,55.52 L 186.01,59.45 L 188.00,64.09 L 188.96,66.18 L 191.31,66.22 L 202.99,61.37 L 206.60,61.83 L 215.89,63.44 L 225.03,68.41 L 227.26,69.70 L 230.92,72.91 L 232.53,76.42 L 202.25,83.39 L 190.30,86.15 L 190.11,86.19 L 175.48,89.56 L 174.98,89.67 L 172.09,90.34 L 171.03,92.82 L 167.51,107.17 L 168.39,112.32 L 163.46,120.21 L 163.53,120.54 L 163.50,124.98 L 161.64,126.98 L 158.13,142.03 L 159.97,144.20 L 158.31,146.89 L 157.98,151.30 L 158.44,163.13 L 153.07,167.92 L 151.46,168.99 L 147.72,168.71 L 146.51,171.55 L 139.31,177.25 L 137.37,180.25 L 137.02,183.95 L 133.27,188.51 L 128.55,190.54 L 125.64,190.47 L 121.65,187.30 L 114.45,172.00 L 110.87,170.08 L 110.83,167.88 L 113.02,164.82 L 115.26,160.05 L 116.43,152.18 L 118.57,149.09 L 119.96,144.46 L 118.61,142.21 L 119.34,137.70 L 122.35,133.91 L 122.26,132.47 L 119.79,131.88 L 110.85,127.73 L 103.71,121.78 L 102.62,118.24 L 99.65,117.54 L 98.42,115.65 L 99.05,113.59 L 97.67,111.58 L 95.65,102.00 L 95.41,101.58 L 94.09,93.68 L 94.65,85.89 L 95.36,84.10 L 100.84,82.72 L 101.87,76.71 L 107.44,71.08 L 111.09,70.58 L 112.58,72.98 L 113.55,72.66 L 113.50,70.58 L 114.47,69.46 L 113.65,67.32 L 107.04,65.36 L 106.80,63.62 L 104.17,62.73 L 103.14,60.55 L 97.05,56.47 L 95.13,52.71 L 95.66,45.57 L 96.48,44.69 L 94.92,42.85 L 95.22,41.45 L 98.36,39.81 L 98.99,42.21 L 100.17,42.36 L 102.61,37.49 L 103.38,33.96 L 101.55,32.72 L 101.98,29.70 L 104.91,27.45 L 105.18,24.98 L 108.80,20.00 L 113.93,24.61 L 126.07,27.12 Z"/>
+<path class="mun" data-name="Capela" data-region="sem" fill="#9aa39d" stroke="#ffffff" stroke-width="1" d="M 466.68,323.10 L 467.75,324.74 L 470.48,325.37 L 470.67,325.42 L 474.96,323.26 L 477.31,324.01 L 477.18,332.95 L 478.37,333.53 L 482.99,340.20 L 483.83,339.51 L 485.45,340.78 L 482.18,345.09 L 484.30,348.94 L 483.31,351.90 L 486.74,357.48 L 489.27,360.01 L 490.62,365.05 L 491.36,366.68 L 494.47,366.93 L 498.29,367.46 L 500.31,369.99 L 501.09,369.51 L 497.44,382.46 L 493.38,396.89 L 485.51,399.31 L 486.11,402.42 L 486.14,402.56 L 486.06,404.37 L 480.06,421.39 L 473.26,440.67 L 464.05,434.95 L 450.30,431.31 L 452.63,428.55 L 452.98,424.78 L 452.29,422.29 L 448.89,421.49 L 449.78,417.07 L 451.50,415.49 L 450.19,410.80 L 452.07,399.13 L 451.67,399.05 L 447.55,398.29 L 437.98,399.67 L 439.15,398.79 L 439.56,392.01 L 435.60,385.28 L 435.14,381.61 L 432.05,379.07 L 426.62,377.03 L 426.66,376.51 L 427.55,370.09 L 433.73,366.16 L 435.76,363.10 L 436.11,360.01 L 436.54,356.21 L 435.25,355.43 L 433.93,354.44 L 436.80,352.61 L 435.82,351.19 L 437.86,350.82 L 433.82,350.83 L 433.88,346.49 L 428.85,344.78 L 431.46,341.55 L 433.60,338.96 L 436.25,340.73 L 437.05,339.40 L 439.69,339.32 L 441.47,336.64 L 440.81,335.76 L 444.26,335.07 L 445.96,331.01 L 448.39,330.57 L 449.07,328.01 L 454.35,324.16 L 457.99,328.56 L 463.02,323.58 L 464.69,324.11 L 466.68,323.10 Z"/>
+<path class="mun" data-name="Carira" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 220.03,273.37 L 219.81,276.36 L 221.89,278.77 L 224.25,277.44 L 226.91,279.12 L 226.99,279.21 L 229.83,278.33 L 237.17,282.96 L 239.02,285.52 L 248.31,292.46 L 250.82,291.12 L 251.97,294.44 L 254.48,290.85 L 256.84,292.03 L 256.54,293.61 L 258.20,294.92 L 252.75,304.89 L 260.93,317.97 L 260.95,318.01 L 265.04,324.63 L 265.93,339.94 L 248.57,354.61 L 246.91,356.40 L 227.16,380.87 L 211.28,391.40 L 210.94,391.63 L 208.73,394.05 L 193.45,390.49 L 190.97,392.13 L 184.32,391.43 L 180.16,392.90 L 177.73,394.52 L 177.22,392.91 L 178.69,391.19 L 177.12,389.50 L 175.74,382.29 L 165.35,366.76 L 161.85,361.95 L 164.68,356.67 L 163.93,353.08 L 169.78,351.04 L 167.86,350.10 L 168.56,346.89 L 171.14,345.18 L 169.16,342.89 L 170.96,343.23 L 172.20,341.31 L 174.63,342.44 L 175.38,340.32 L 178.69,338.03 L 180.65,338.20 L 188.03,333.65 L 188.74,331.50 L 192.08,329.83 L 197.24,329.90 L 204.21,327.40 L 207.40,325.55 L 205.03,320.00 L 204.96,319.78 L 196.08,274.52 L 199.93,276.20 L 213.85,271.41 L 220.03,273.37 Z"/>
+<path class="mun" data-name="Carmópolis" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 510.67,454.57 L 513.89,460.42 L 512.96,459.87 L 511.97,461.96 L 509.57,463.00 L 509.45,464.71 L 508.47,462.86 L 506.88,463.31 L 507.64,457.61 L 498.14,457.44 L 483.86,456.48 L 481.75,455.93 L 473.19,453.70 L 473.26,440.67 L 480.31,437.21 L 484.34,437.09 L 488.78,436.95 L 488.18,439.54 L 491.61,444.19 L 501.55,445.77 L 503.09,451.61 L 505.43,454.11 L 510.67,454.57 Z"/>
+<path class="mun" data-name="Cedro de São João" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 530.27,305.28 L 523.15,312.22 L 521.09,312.12 L 519.15,313.60 L 513.10,322.34 L 502.12,316.49 L 500.90,315.79 L 501.69,304.38 L 494.84,300.79 L 503.42,284.46 L 514.30,285.62 L 518.46,285.93 L 525.94,286.47 L 531.80,290.21 L 533.00,290.98 L 534.49,299.06 L 530.27,305.28 Z"/>
+<path class="mun" data-name="Cristinápolis" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 212.69,727.16 L 218.65,730.62 L 218.70,730.75 L 219.23,732.22 L 222.72,733.66 L 223.22,736.58 L 225.39,737.33 L 226.55,740.77 L 228.71,741.79 L 230.43,745.64 L 228.48,751.56 L 234.68,756.19 L 237.17,753.97 L 237.59,755.15 L 239.90,756.77 L 240.39,761.29 L 239.05,761.65 L 240.07,763.03 L 243.32,762.31 L 243.55,766.37 L 245.22,768.68 L 243.33,768.37 L 240.83,770.71 L 237.96,768.50 L 237.18,772.59 L 235.84,774.08 L 233.11,774.08 L 234.23,777.90 L 230.29,783.87 L 231.18,785.58 L 229.94,787.31 L 225.84,784.83 L 224.56,786.40 L 220.07,784.96 L 221.76,780.13 L 221.50,778.49 L 219.17,776.74 L 215.71,781.35 L 213.09,780.37 L 209.94,781.37 L 208.81,775.68 L 202.39,776.02 L 198.32,770.99 L 196.95,770.88 L 196.99,772.31 L 194.25,773.41 L 192.67,770.80 L 186.74,770.53 L 185.29,768.61 L 183.19,769.31 L 178.96,767.66 L 176.30,762.29 L 176.68,761.41 L 178.63,762.16 L 180.18,760.52 L 177.51,758.67 L 174.34,758.56 L 171.33,755.33 L 179.40,732.60 L 180.78,728.90 L 202.85,728.78 L 207.00,727.42 L 209.16,724.97 L 211.46,724.10 L 212.69,727.16 Z"/>
+<path class="mun" data-name="Cumbe" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 398.53,313.45 L 399.85,313.46 L 400.24,311.94 L 401.25,313.26 L 403.71,312.14 L 406.19,314.57 L 409.05,314.01 L 410.55,316.23 L 414.07,317.69 L 415.23,321.23 L 413.92,322.52 L 416.14,323.82 L 415.33,325.90 L 413.15,326.26 L 414.34,327.57 L 413.51,327.94 L 415.66,329.20 L 417.16,328.35 L 420.84,331.18 L 419.38,332.19 L 420.98,335.22 L 418.82,336.46 L 419.02,337.93 L 420.88,337.34 L 421.18,338.61 L 423.63,336.61 L 423.27,338.16 L 424.45,338.46 L 424.30,336.52 L 425.96,336.95 L 425.77,335.96 L 427.63,335.43 L 430.05,340.24 L 431.03,340.24 L 430.25,341.07 L 431.46,341.55 L 428.85,344.78 L 433.88,346.49 L 433.82,350.83 L 437.86,350.82 L 435.82,351.19 L 436.80,352.61 L 433.93,354.44 L 433.71,354.20 L 432.64,352.83 L 430.13,354.87 L 428.69,353.13 L 424.27,358.28 L 422.84,356.86 L 421.30,357.54 L 421.67,356.17 L 419.46,354.91 L 417.72,354.84 L 415.08,357.37 L 412.93,356.30 L 410.87,356.64 L 407.58,353.21 L 401.32,351.49 L 400.20,349.03 L 399.75,348.02 L 399.59,347.88 L 395.13,343.78 L 394.52,343.29 L 393.45,342.02 L 393.44,341.82 L 391.87,337.02 L 389.27,335.43 L 389.30,328.80 L 385.79,320.21 L 390.84,315.45 L 390.84,313.97 L 390.12,313.64 L 388.20,310.89 L 388.58,308.56 L 383.25,305.87 L 382.49,301.40 L 369.71,296.76 L 381.30,290.00 L 381.40,290.27 L 385.57,297.28 L 388.22,299.39 L 390.65,303.72 L 390.35,305.82 L 392.30,307.22 L 394.57,312.21 L 398.53,313.45 Z"/>
+<path class="mun" data-name="Divina Pastora" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 401.21,428.23 L 412.00,434.91 L 422.07,433.18 L 418.98,435.77 L 424.68,434.81 L 423.71,439.01 L 425.05,442.03 L 428.09,444.52 L 435.16,443.10 L 440.99,441.93 L 442.70,439.81 L 443.24,440.82 L 444.61,443.42 L 444.04,445.99 L 434.92,457.12 L 432.73,463.66 L 424.98,462.93 L 423.41,470.17 L 421.44,471.21 L 420.76,472.59 L 421.74,475.09 L 421.86,477.15 L 419.19,478.55 L 419.52,480.41 L 418.07,481.96 L 417.15,479.11 L 418.22,476.46 L 414.26,475.59 L 415.54,473.00 L 412.97,471.66 L 410.89,469.66 L 409.16,471.86 L 408.44,472.38 L 406.07,473.52 L 401.03,472.28 L 403.88,470.44 L 402.61,468.92 L 402.96,466.79 L 401.32,465.23 L 402.60,462.03 L 404.97,460.05 L 403.94,458.94 L 403.99,454.22 L 406.45,454.13 L 407.21,451.22 L 406.08,450.82 L 407.35,449.28 L 407.62,447.11 L 410.75,445.98 L 409.76,443.73 L 410.57,441.00 L 409.25,440.61 L 406.21,435.57 L 402.64,436.02 L 402.03,434.69 L 402.84,430.85 L 401.21,428.23 Z"/>
+<path class="mun" data-name="Estância" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 353.24,637.16 L 351.65,640.43 L 350.27,640.76 L 349.27,647.07 L 348.90,648.50 L 352.22,652.26 L 355.91,655.02 L 355.21,656.62 L 356.91,657.95 L 355.68,661.27 L 356.37,663.47 L 362.20,667.67 L 362.52,668.06 L 373.59,677.00 L 381.39,682.77 L 374.14,694.41 L 369.67,703.76 L 360.07,734.37 L 357.72,736.20 L 356.14,741.15 L 352.03,740.12 L 347.78,740.15 L 340.24,744.71 L 330.04,737.23 L 329.96,737.11 L 329.29,736.16 L 327.22,733.22 L 327.20,733.12 L 326.68,728.35 L 328.10,721.73 L 334.61,712.99 L 334.58,707.47 L 338.56,700.93 L 335.08,694.33 L 330.51,692.11 L 327.56,687.42 L 322.24,687.83 L 320.75,689.69 L 313.31,684.61 L 311.26,687.48 L 311.10,687.55 L 307.49,691.04 L 298.05,688.25 L 292.77,688.52 L 285.02,686.95 L 284.67,684.43 L 285.91,683.88 L 287.79,682.85 L 291.11,677.30 L 288.36,676.60 L 288.01,674.11 L 284.95,671.47 L 283.91,670.00 L 284.70,665.51 L 283.00,665.42 L 282.61,663.59 L 284.39,661.61 L 284.20,659.76 L 281.60,660.01 L 279.75,656.81 L 281.73,648.71 L 280.15,645.42 L 277.64,645.42 L 276.20,643.06 L 275.13,644.25 L 273.62,643.54 L 272.84,641.62 L 275.37,639.53 L 276.44,637.17 L 293.15,633.21 L 293.74,633.07 L 298.14,632.03 L 308.75,629.52 L 316.72,622.23 L 317.48,618.86 L 316.06,618.20 L 316.68,616.57 L 318.47,616.16 L 319.26,614.20 L 316.24,611.09 L 316.38,607.35 L 322.17,603.32 L 334.34,594.86 L 334.37,594.92 L 335.96,595.53 L 338.21,600.71 L 341.34,601.74 L 342.95,604.02 L 345.96,607.86 L 348.46,608.87 L 353.45,617.01 L 352.58,622.95 L 355.49,626.61 L 355.21,630.01 L 352.80,631.82 L 352.74,635.35 L 353.24,637.16 Z"/>
+<path class="mun" data-name="Feira Nova" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 383.25,305.87 L 388.58,308.56 L 388.20,310.89 L 390.12,313.64 L 387.74,312.56 L 383.80,315.23 L 379.94,314.64 L 376.69,315.72 L 377.10,316.67 L 378.01,318.78 L 374.52,317.70 L 372.09,318.55 L 371.70,320.52 L 368.98,320.79 L 368.09,322.91 L 366.14,323.86 L 366.64,325.77 L 363.89,331.15 L 360.54,332.61 L 361.06,335.34 L 357.54,337.97 L 357.45,341.32 L 354.42,342.87 L 351.10,342.64 L 350.45,343.43 L 352.01,344.77 L 349.17,344.88 L 348.80,341.90 L 348.80,341.88 L 348.92,340.07 L 346.31,339.02 L 347.32,336.87 L 348.27,337.61 L 350.51,336.80 L 350.66,335.12 L 348.69,334.14 L 348.70,330.83 L 345.27,330.08 L 344.84,327.01 L 346.47,326.14 L 344.05,324.22 L 341.75,324.68 L 340.81,323.69 L 340.09,324.66 L 338.42,319.78 L 336.74,319.20 L 334.87,320.75 L 333.47,319.92 L 335.74,316.66 L 334.97,315.22 L 335.21,310.86 L 334.20,311.17 L 332.58,309.06 L 333.80,303.43 L 332.48,298.35 L 330.95,296.76 L 333.63,290.22 L 336.06,282.77 L 344.64,281.52 L 353.77,280.20 L 355.28,279.99 L 381.30,290.00 L 369.71,296.76 L 382.49,301.40 L 383.25,305.87 Z"/>
+<path class="mun" data-name="Frei Paulo" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 291.44,433.05 L 282.49,442.50 L 272.16,432.66 L 252.37,429.03 L 245.87,427.83 L 241.81,427.09 L 238.65,422.27 L 229.40,408.15 L 224.39,400.49 L 210.94,391.63 L 211.28,391.40 L 227.16,380.87 L 246.91,356.40 L 248.57,354.61 L 265.93,339.94 L 272.26,367.12 L 275.89,373.63 L 275.93,373.70 L 276.14,374.00 L 289.63,390.27 L 291.26,393.84 L 293.47,398.70 L 293.85,399.25 L 303.11,412.85 L 303.13,412.88 L 297.53,422.54 L 293.92,428.78 L 291.44,433.05 Z"/>
+<path class="mun" data-name="Gararu" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 428.62,169.00 L 447.71,186.74 L 449.77,188.76 L 453.38,192.13 L 454.37,192.94 L 454.64,193.16 L 461.11,196.98 L 466.36,196.08 L 475.32,192.32 L 479.23,192.00 L 489.25,198.54 L 492.38,205.36 L 492.61,206.04 L 492.82,206.63 L 492.83,206.66 L 492.95,207.00 L 493.36,210.03 L 493.36,210.06 L 492.72,210.24 L 489.93,211.03 L 474.88,215.28 L 467.39,221.64 L 454.94,224.15 L 454.56,224.20 L 439.63,220.26 L 439.41,222.03 L 436.28,220.48 L 430.33,222.61 L 429.20,221.42 L 426.49,222.46 L 426.16,221.06 L 423.45,220.38 L 418.65,220.89 L 413.75,219.65 L 411.11,214.11 L 407.47,211.80 L 405.12,211.11 L 406.55,212.82 L 408.06,212.81 L 407.31,213.90 L 408.67,216.67 L 406.65,219.83 L 409.14,221.80 L 407.96,222.66 L 407.83,224.21 L 404.81,227.07 L 407.30,227.59 L 408.93,226.06 L 409.39,228.85 L 405.61,229.13 L 404.11,231.63 L 399.61,230.12 L 399.10,232.00 L 401.98,237.07 L 397.67,234.96 L 396.95,235.38 L 398.61,239.42 L 395.76,238.65 L 393.24,238.83 L 391.96,243.89 L 392.47,244.78 L 394.88,243.08 L 396.50,243.66 L 394.16,246.12 L 395.37,245.71 L 396.31,246.89 L 395.70,248.19 L 397.11,250.24 L 395.44,251.05 L 396.42,251.87 L 396.68,254.24 L 394.96,255.01 L 396.56,257.20 L 396.03,259.93 L 393.50,258.47 L 392.61,260.68 L 389.74,260.73 L 387.09,256.34 L 385.66,258.96 L 383.48,258.22 L 381.24,259.26 L 381.08,260.72 L 380.96,262.49 L 378.74,263.54 L 377.38,262.83 L 374.47,265.26 L 372.78,264.31 L 373.79,260.98 L 372.36,259.66 L 366.92,259.52 L 363.22,259.27 L 361.95,258.66 L 350.44,259.60 L 355.50,249.26 L 349.22,244.26 L 336.80,234.02 L 336.77,233.99 L 326.46,225.44 L 323.03,224.46 L 326.90,220.68 L 329.93,220.89 L 330.29,218.24 L 332.32,219.63 L 333.29,216.44 L 336.44,215.40 L 335.90,212.70 L 338.98,210.94 L 337.62,209.20 L 340.25,209.19 L 340.31,207.65 L 337.87,205.07 L 342.47,204.01 L 343.59,205.08 L 343.20,207.12 L 345.12,206.28 L 347.29,207.06 L 349.32,202.68 L 347.08,202.94 L 346.99,201.25 L 347.98,198.97 L 349.16,201.20 L 351.20,200.96 L 351.00,198.43 L 352.66,196.27 L 355.01,198.86 L 354.49,202.77 L 356.74,205.00 L 355.15,207.11 L 357.84,206.05 L 361.16,204.19 L 362.35,201.17 L 364.13,201.14 L 366.28,202.19 L 369.11,207.15 L 372.10,204.88 L 371.32,198.92 L 372.64,196.97 L 379.65,198.89 L 377.09,188.36 L 378.72,186.82 L 381.36,188.31 L 382.84,185.78 L 391.39,185.27 L 392.39,168.59 L 394.11,163.64 L 405.61,163.11 L 421.16,164.16 L 428.62,169.00 Z"/>
+<path class="mun" data-name="General Maynard" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 500.92,461.46 L 496.00,467.25 L 495.41,467.83 L 491.47,464.62 L 488.22,465.22 L 486.40,463.23 L 484.46,463.04 L 480.20,463.99 L 475.26,461.43 L 471.32,457.09 L 473.34,455.81 L 473.19,453.70 L 481.75,455.93 L 483.86,456.48 L 498.14,457.44 L 507.64,457.61 L 500.92,461.46 Z"/>
+<path class="mun" data-name="Gracho Cardoso" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 402.83,258.98 L 402.39,260.31 L 404.29,260.51 L 405.96,262.13 L 407.65,260.54 L 411.23,266.51 L 413.17,266.22 L 413.62,264.77 L 417.29,265.26 L 421.46,262.97 L 420.67,271.22 L 426.89,273.58 L 427.19,276.01 L 427.11,276.08 L 424.75,277.73 L 422.19,284.47 L 421.86,289.36 L 422.62,291.41 L 425.53,293.37 L 424.91,297.07 L 426.39,299.16 L 426.59,303.97 L 426.02,306.17 L 423.22,308.84 L 421.96,309.14 L 422.37,310.80 L 423.07,314.46 L 420.19,316.05 L 422.41,319.12 L 422.51,321.84 L 416.57,325.41 L 417.78,326.19 L 417.16,328.35 L 415.66,329.20 L 413.51,327.94 L 414.34,327.57 L 413.15,326.26 L 415.33,325.90 L 416.14,323.82 L 413.92,322.52 L 415.23,321.23 L 414.07,317.69 L 410.55,316.23 L 409.05,314.01 L 406.19,314.57 L 403.71,312.14 L 401.25,313.26 L 400.24,311.94 L 399.85,313.46 L 398.53,313.45 L 394.57,312.21 L 392.30,307.22 L 390.35,305.82 L 390.65,303.72 L 388.22,299.39 L 385.57,297.28 L 381.40,290.27 L 381.30,290.00 L 355.28,279.99 L 361.95,258.66 L 363.22,259.27 L 366.92,259.52 L 372.36,259.66 L 373.79,260.98 L 372.78,264.31 L 374.47,265.26 L 377.38,262.83 L 378.74,263.54 L 380.96,262.49 L 381.08,260.72 L 381.24,259.26 L 383.48,258.22 L 385.66,258.96 L 387.09,256.34 L 389.74,260.73 L 392.61,260.68 L 393.50,258.47 L 396.03,259.93 L 396.56,257.20 L 394.96,255.01 L 396.68,254.24 L 396.42,251.87 L 402.44,256.20 L 401.24,257.37 L 402.83,258.98 Z"/>
+<path class="mun" data-name="Ilha das Flores" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 637.86,358.02 L 644.61,361.88 L 646.84,359.02 L 657.14,358.66 L 653.92,359.89 L 652.85,363.03 L 657.33,362.92 L 664.83,359.63 L 666.86,364.54 L 662.02,366.03 L 656.18,368.14 L 650.81,375.25 L 639.98,381.96 L 629.64,387.91 L 624.23,386.84 L 624.08,384.88 L 627.25,381.34 L 624.23,379.80 L 626.50,373.18 L 625.98,368.98 L 627.66,367.59 L 629.35,369.73 L 629.21,367.43 L 630.41,365.69 L 631.34,366.14 L 630.82,364.74 L 633.48,365.04 L 633.18,363.86 L 636.77,362.72 L 637.86,358.02 Z"/>
+<path class="mun" data-name="Indiaroba" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 280.75,730.45 L 284.31,732.94 L 290.74,729.80 L 292.36,734.88 L 295.93,740.51 L 296.13,740.61 L 298.98,740.59 L 300.87,743.15 L 304.63,742.98 L 304.00,742.01 L 304.85,741.83 L 306.82,743.62 L 307.98,740.89 L 313.20,739.68 L 315.36,733.90 L 318.65,733.40 L 322.27,735.72 L 325.20,734.82 L 327.22,733.22 L 329.29,736.16 L 329.96,737.11 L 330.04,737.23 L 340.24,744.71 L 333.16,753.78 L 329.28,757.34 L 326.04,759.84 L 311.98,769.28 L 307.02,770.44 L 292.36,770.80 L 290.12,773.02 L 287.77,775.06 L 286.37,779.91 L 274.26,779.42 L 272.18,780.66 L 270.80,777.81 L 268.39,776.56 L 266.59,777.58 L 267.03,779.88 L 264.71,781.09 L 262.21,777.48 L 264.61,774.51 L 263.76,773.29 L 260.85,772.18 L 255.73,776.72 L 253.79,775.24 L 250.84,775.89 L 246.60,772.76 L 245.22,768.68 L 243.55,766.37 L 243.32,762.31 L 240.07,763.03 L 239.05,761.65 L 240.39,761.29 L 239.90,756.77 L 237.59,755.15 L 241.81,747.14 L 244.16,742.68 L 252.95,726.02 L 256.05,720.12 L 256.08,720.14 L 264.47,725.29 L 264.55,725.33 L 266.92,726.79 L 267.94,727.42 L 269.90,728.62 L 271.97,729.89 L 280.75,730.45 Z"/>
+<path class="mun" data-name="Itabaiana" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 303.78,414.45 L 307.63,423.74 L 314.88,420.12 L 322.10,416.53 L 325.86,417.38 L 332.27,418.84 L 333.08,419.93 L 333.44,421.36 L 334.89,423.93 L 334.05,426.10 L 334.73,431.73 L 334.72,431.90 L 334.04,435.10 L 335.13,436.46 L 337.47,436.72 L 337.83,434.18 L 339.64,436.95 L 341.44,437.41 L 342.18,439.60 L 342.99,442.03 L 345.16,442.22 L 344.41,444.37 L 345.30,445.85 L 349.93,447.10 L 356.53,445.44 L 359.24,458.05 L 357.69,464.72 L 355.78,469.58 L 353.81,470.90 L 350.67,473.00 L 347.53,475.09 L 343.92,478.32 L 343.84,478.49 L 339.12,488.45 L 338.65,489.44 L 333.06,501.27 L 331.86,503.79 L 329.30,509.22 L 321.54,511.15 L 320.45,511.43 L 318.84,511.73 L 314.38,501.09 L 312.40,495.39 L 313.42,493.48 L 314.54,494.76 L 315.27,493.78 L 314.79,491.46 L 311.09,488.93 L 312.40,487.74 L 311.73,486.40 L 311.92,481.67 L 311.30,476.99 L 308.95,470.76 L 307.04,467.64 L 303.05,466.67 L 300.36,462.85 L 295.18,460.89 L 293.62,460.27 L 293.43,458.30 L 291.73,455.47 L 290.79,452.39 L 286.84,450.06 L 286.35,446.10 L 285.71,445.57 L 282.49,442.50 L 291.44,433.05 L 293.92,428.78 L 297.53,422.54 L 303.13,412.88 L 303.78,414.45 Z"/>
+<path class="mun" data-name="Itabaianinha" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 192.44,624.56 L 196.07,628.13 L 197.51,627.82 L 201.47,630.65 L 204.39,632.77 L 206.26,631.25 L 209.92,636.66 L 213.16,635.57 L 215.71,637.99 L 217.68,640.47 L 219.31,642.54 L 219.89,643.71 L 218.22,646.88 L 218.38,647.03 L 221.35,649.16 L 221.66,651.68 L 223.78,651.32 L 226.21,657.66 L 228.45,662.98 L 230.38,664.12 L 231.21,666.33 L 232.84,666.84 L 233.56,669.85 L 233.62,680.27 L 233.64,683.19 L 223.11,689.97 L 223.10,693.22 L 223.10,698.21 L 223.08,711.53 L 219.35,715.13 L 209.16,724.97 L 207.00,727.42 L 202.85,728.78 L 201.30,724.60 L 201.37,726.43 L 198.33,726.96 L 196.74,725.86 L 197.60,722.15 L 194.73,720.62 L 194.19,715.94 L 191.60,716.41 L 188.86,714.36 L 188.68,711.38 L 188.20,709.19 L 186.64,709.42 L 186.52,704.90 L 177.76,698.87 L 177.78,696.20 L 177.75,696.17 L 175.25,694.16 L 172.81,694.82 L 170.09,692.48 L 169.50,691.82 L 166.63,688.91 L 165.64,687.50 L 164.14,686.13 L 163.00,687.16 L 160.11,686.93 L 157.30,681.30 L 156.18,681.34 L 154.55,682.83 L 146.22,676.58 L 143.93,673.66 L 140.12,674.04 L 136.68,669.17 L 141.15,662.76 L 145.16,657.69 L 151.60,654.42 L 152.71,653.86 L 154.54,656.13 L 158.34,657.89 L 159.15,653.41 L 157.41,652.35 L 157.89,650.03 L 155.48,645.93 L 155.42,644.56 L 160.75,639.97 L 160.92,639.82 L 166.46,635.04 L 173.05,631.59 L 186.06,624.79 L 189.03,624.37 L 189.10,624.38 L 192.44,624.56 Z"/>
+<path class="mun" data-name="Itabi" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 413.75,219.65 L 418.65,220.89 L 423.45,220.38 L 426.16,221.06 L 426.49,222.46 L 429.20,221.42 L 430.33,222.61 L 436.28,220.48 L 439.41,222.03 L 439.63,220.26 L 454.56,224.20 L 453.80,228.23 L 453.38,230.41 L 452.38,235.69 L 453.48,252.17 L 444.19,255.30 L 423.44,262.30 L 421.53,262.94 L 421.46,262.97 L 417.29,265.26 L 413.62,264.77 L 413.17,266.22 L 411.23,266.51 L 407.65,260.54 L 405.96,262.13 L 404.29,260.51 L 402.39,260.31 L 402.83,258.98 L 401.24,257.37 L 402.44,256.20 L 396.42,251.87 L 395.44,251.05 L 397.11,250.24 L 395.70,248.19 L 396.31,246.89 L 395.37,245.71 L 394.16,246.12 L 396.50,243.66 L 394.88,243.08 L 392.47,244.78 L 391.96,243.89 L 393.24,238.83 L 395.76,238.65 L 398.61,239.42 L 396.95,235.38 L 397.67,234.96 L 401.98,237.07 L 399.10,232.00 L 399.61,230.12 L 404.11,231.63 L 405.61,229.13 L 409.39,228.85 L 408.93,226.06 L 407.30,227.59 L 404.81,227.07 L 407.83,224.21 L 407.96,222.66 L 409.14,221.80 L 406.65,219.83 L 408.67,216.67 L 407.31,213.90 L 408.06,212.81 L 406.55,212.82 L 405.12,211.11 L 407.47,211.80 L 411.11,214.11 L 413.75,219.65 Z"/>
+<path class="mun" data-name="Itaporanga d'Ajuda" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 329.12,516.76 L 339.40,519.78 L 343.79,517.73 L 348.29,518.77 L 351.91,518.23 L 353.52,514.91 L 356.46,512.61 L 360.40,513.02 L 356.46,545.61 L 355.50,552.15 L 352.93,554.77 L 354.06,557.25 L 354.87,561.55 L 357.98,564.21 L 356.54,566.56 L 364.80,569.73 L 365.08,572.48 L 365.84,574.15 L 365.85,574.18 L 367.46,578.79 L 368.80,581.36 L 372.48,583.61 L 372.66,585.08 L 384.19,587.87 L 393.90,590.02 L 394.80,599.29 L 396.82,603.43 L 402.12,606.95 L 409.96,609.85 L 416.17,614.17 L 417.81,618.79 L 417.76,624.67 L 415.93,629.69 L 417.33,631.82 L 419.51,633.82 L 421.57,635.63 L 404.72,654.38 L 402.08,657.27 L 381.39,682.77 L 373.59,677.00 L 362.52,668.06 L 362.20,667.67 L 356.37,663.47 L 355.68,661.27 L 356.91,657.95 L 355.21,656.62 L 355.91,655.02 L 352.22,652.26 L 348.90,648.50 L 349.27,647.07 L 350.27,640.76 L 351.65,640.43 L 353.24,637.16 L 352.74,635.35 L 352.80,631.82 L 355.21,630.01 L 355.49,626.61 L 352.58,622.95 L 353.45,617.01 L 348.46,608.87 L 345.96,607.86 L 342.95,604.02 L 341.34,601.74 L 338.21,600.71 L 335.96,595.53 L 334.37,594.92 L 334.34,594.86 L 328.85,587.93 L 328.77,587.83 L 328.39,585.31 L 325.60,578.14 L 320.78,575.24 L 320.18,570.92 L 317.80,570.37 L 315.78,568.14 L 309.97,566.46 L 304.28,557.22 L 303.07,555.26 L 300.90,551.75 L 300.64,551.33 L 292.40,537.96 L 295.01,539.32 L 298.95,537.68 L 303.57,535.14 L 306.44,534.97 L 309.64,530.98 L 314.84,525.22 L 328.70,509.88 L 327.87,512.14 L 329.12,516.76 Z"/>
+<path class="mun" data-name="Japaratuba" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 522.57,355.35 L 525.65,357.82 L 529.73,358.09 L 529.64,361.19 L 525.96,362.34 L 523.14,365.15 L 524.99,371.15 L 525.87,380.72 L 525.85,382.52 L 528.07,384.36 L 528.80,386.99 L 533.37,387.48 L 536.80,390.87 L 539.46,400.12 L 547.74,406.61 L 547.68,414.09 L 547.55,415.92 L 556.82,416.39 L 536.08,432.65 L 531.37,436.33 L 516.46,448.02 L 514.38,449.13 L 512.86,448.65 L 511.80,449.43 L 510.24,450.57 L 505.43,454.11 L 503.09,451.61 L 501.55,445.77 L 491.61,444.19 L 488.18,439.54 L 488.78,436.95 L 484.34,437.09 L 480.31,437.21 L 473.26,440.67 L 480.06,421.39 L 486.06,404.37 L 486.14,402.56 L 486.11,402.42 L 485.51,399.31 L 493.38,396.89 L 497.44,382.46 L 501.09,369.51 L 502.07,360.83 L 503.41,359.97 L 504.91,360.86 L 507.66,358.23 L 509.86,358.43 L 512.14,357.13 L 512.48,355.42 L 512.92,351.90 L 520.20,349.63 L 522.47,352.88 L 522.57,355.35 Z"/>
+<path class="mun" data-name="Japoatã" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 553.03,309.03 L 554.67,312.91 L 558.67,316.41 L 558.78,316.53 L 561.87,317.33 L 564.74,320.27 L 568.96,318.53 L 573.01,321.31 L 574.15,323.30 L 573.48,328.32 L 575.37,335.16 L 580.63,343.36 L 586.79,352.86 L 582.91,370.13 L 582.27,372.74 L 576.14,396.43 L 575.30,399.66 L 569.14,423.49 L 567.25,423.21 L 563.49,418.26 L 556.82,416.39 L 547.55,415.92 L 547.68,414.09 L 547.74,406.61 L 539.46,400.12 L 536.80,390.87 L 533.37,387.48 L 528.80,386.99 L 528.07,384.36 L 525.85,382.52 L 525.87,380.72 L 524.99,371.15 L 523.14,365.15 L 525.96,362.34 L 529.64,361.19 L 529.73,358.09 L 525.65,357.82 L 522.57,355.35 L 522.47,352.88 L 520.20,349.63 L 512.92,351.90 L 515.90,345.50 L 530.38,343.94 L 532.78,340.66 L 536.13,334.28 L 536.56,329.11 L 540.75,325.50 L 542.99,317.55 L 544.34,317.43 L 542.38,314.76 L 543.77,312.43 L 546.76,312.46 L 550.05,307.40 L 551.04,306.77 L 550.68,308.44 L 553.03,309.03 Z"/>
+<path class="mun" data-name="Lagarto" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 239.68,466.23 L 243.24,467.55 L 249.38,465.11 L 250.22,467.24 L 250.54,468.17 L 245.88,472.17 L 245.02,474.77 L 246.44,477.96 L 244.79,480.43 L 249.51,480.85 L 254.08,487.99 L 256.71,493.16 L 251.89,498.55 L 251.81,500.56 L 253.11,504.86 L 256.70,505.70 L 257.84,508.15 L 257.94,508.43 L 263.76,513.78 L 266.83,514.95 L 269.62,513.79 L 274.59,515.20 L 277.27,513.36 L 278.62,514.64 L 287.29,516.71 L 289.46,516.51 L 290.18,513.34 L 294.46,512.45 L 295.85,511.65 L 297.85,512.51 L 297.90,514.29 L 300.67,515.41 L 299.77,521.97 L 301.80,522.28 L 304.21,519.93 L 309.26,527.18 L 308.52,529.92 L 309.64,530.98 L 306.44,534.97 L 303.57,535.14 L 298.95,537.68 L 295.01,539.32 L 292.40,537.96 L 300.64,551.33 L 300.90,551.75 L 303.07,555.26 L 304.28,557.22 L 309.97,566.46 L 309.87,566.43 L 291.51,561.41 L 286.92,560.15 L 286.41,560.17 L 283.27,570.28 L 282.60,572.45 L 282.59,572.48 L 282.29,573.43 L 276.35,578.15 L 275.64,578.71 L 268.51,584.36 L 267.97,587.84 L 269.75,589.81 L 248.77,600.03 L 248.71,600.06 L 244.23,598.98 L 240.78,592.32 L 238.23,592.55 L 236.20,590.05 L 231.11,586.73 L 229.34,583.36 L 225.69,585.07 L 222.88,584.79 L 215.30,575.18 L 213.18,573.74 L 210.81,572.38 L 204.22,571.19 L 203.46,573.78 L 205.52,575.57 L 205.00,579.04 L 202.19,578.89 L 200.33,576.33 L 197.77,579.09 L 195.82,578.64 L 194.98,581.24 L 193.05,581.27 L 192.06,577.32 L 190.15,579.00 L 188.55,577.83 L 186.03,582.12 L 184.14,579.58 L 180.08,579.10 L 179.06,576.18 L 177.50,577.59 L 175.38,576.83 L 175.44,573.38 L 174.14,571.23 L 169.86,570.41 L 171.66,567.49 L 168.98,563.78 L 169.30,561.62 L 169.09,558.33 L 170.81,556.70 L 168.74,555.29 L 166.32,550.34 L 164.54,550.38 L 155.96,545.47 L 159.12,536.88 L 155.24,524.15 L 161.14,526.02 L 165.62,524.57 L 173.06,522.16 L 178.40,526.21 L 181.60,515.45 L 183.66,513.53 L 186.62,511.99 L 195.89,507.18 L 201.08,502.76 L 205.49,501.18 L 207.92,499.28 L 211.28,494.95 L 213.60,488.81 L 212.56,487.84 L 216.72,483.14 L 216.45,481.89 L 217.46,477.01 L 220.79,476.63 L 227.76,472.89 L 228.01,468.11 L 231.57,465.72 L 233.36,469.06 L 237.10,466.37 L 239.64,461.22 L 241.37,462.64 L 239.68,466.23 Z"/>
+<path class="mun" data-name="Laranjeiras" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 418.07,481.96 L 421.18,488.75 L 422.99,489.35 L 424.20,487.47 L 428.33,488.33 L 427.98,491.36 L 428.82,493.53 L 431.09,494.99 L 439.53,490.69 L 444.96,493.83 L 445.27,499.52 L 449.69,502.94 L 453.52,508.72 L 443.00,508.93 L 438.91,507.43 L 436.34,511.05 L 431.48,512.80 L 426.73,513.40 L 420.76,512.55 L 419.28,512.24 L 419.00,513.82 L 413.34,516.12 L 411.01,520.70 L 407.46,520.23 L 407.46,519.96 L 401.45,518.12 L 398.22,518.24 L 392.29,513.81 L 387.86,512.80 L 360.66,511.94 L 373.17,502.53 L 377.01,499.64 L 387.13,492.03 L 393.25,485.73 L 396.15,485.02 L 398.13,487.51 L 415.42,482.70 L 418.07,481.96 Z"/>
+<path class="mun" data-name="Macambira" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 290.79,452.39 L 291.73,455.47 L 293.43,458.30 L 283.79,458.45 L 281.71,458.53 L 280.42,460.71 L 275.80,461.77 L 275.76,461.78 L 271.30,459.67 L 266.42,459.11 L 265.37,457.21 L 262.27,455.60 L 258.51,461.26 L 255.18,460.38 L 253.97,462.92 L 254.86,466.17 L 253.43,465.23 L 252.72,467.45 L 250.22,467.24 L 249.38,465.11 L 243.24,467.55 L 239.68,466.23 L 241.37,462.64 L 239.64,461.22 L 237.10,466.37 L 233.36,469.06 L 233.89,467.51 L 232.51,465.61 L 234.03,463.85 L 233.28,459.51 L 233.50,455.84 L 231.63,453.30 L 234.04,445.87 L 236.28,443.24 L 238.52,431.99 L 241.81,427.09 L 245.87,427.83 L 252.37,429.03 L 272.16,432.66 L 282.49,442.50 L 285.71,445.57 L 286.35,446.10 L 286.84,450.06 L 290.79,452.39 Z"/>
+<path class="mun" data-name="Malhada dos Bois" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 508.88,342.99 L 508.29,348.20 L 504.03,343.68 L 495.42,334.54 L 488.40,327.08 L 473.91,314.16 L 493.46,309.55 L 500.45,305.16 L 501.69,304.38 L 500.90,315.79 L 502.12,316.49 L 513.10,322.34 L 513.81,332.02 L 509.09,341.22 L 508.88,342.99 Z"/>
+<path class="mun" data-name="Malhador" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 368.47,425.77 L 368.81,429.45 L 370.17,429.36 L 373.91,433.02 L 374.48,437.71 L 378.54,438.70 L 381.79,443.83 L 386.47,444.48 L 386.31,448.42 L 389.50,449.73 L 392.19,453.19 L 393.50,457.10 L 391.82,461.55 L 394.97,464.58 L 393.84,465.84 L 392.87,463.85 L 391.56,464.58 L 390.31,464.57 L 389.50,465.99 L 387.09,465.24 L 385.42,466.20 L 384.95,464.71 L 381.99,463.74 L 379.77,465.72 L 379.78,467.62 L 377.46,468.43 L 375.74,467.04 L 373.38,470.80 L 369.51,471.28 L 367.40,474.05 L 361.19,477.95 L 360.19,477.03 L 361.65,475.47 L 362.79,475.06 L 361.60,474.57 L 360.55,474.41 L 355.19,472.69 L 353.81,470.90 L 355.78,469.58 L 357.69,464.72 L 359.24,458.05 L 356.53,445.44 L 356.52,445.41 L 355.27,440.19 L 356.80,436.04 L 359.29,432.73 L 361.48,431.06 L 365.85,427.75 L 368.47,425.77 Z"/>
+<path class="mun" data-name="Maruim" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 444.52,456.47 L 446.16,457.76 L 449.63,457.07 L 451.95,459.66 L 455.50,459.85 L 457.78,463.52 L 454.28,469.47 L 451.54,481.14 L 451.41,481.86 L 451.78,488.69 L 449.67,492.33 L 447.73,492.07 L 444.96,493.83 L 439.53,490.69 L 431.09,494.99 L 428.82,493.53 L 427.98,491.36 L 428.33,488.33 L 424.20,487.47 L 422.99,489.35 L 421.18,488.75 L 418.07,481.96 L 419.52,480.41 L 419.19,478.55 L 421.86,477.15 L 421.74,475.09 L 420.76,472.59 L 421.44,471.21 L 423.41,470.17 L 424.98,462.93 L 432.73,463.66 L 434.92,457.12 L 444.04,445.99 L 443.20,452.93 L 444.52,456.47 Z"/>
+<path class="mun" data-name="Moita Bonita" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 353.55,402.93 L 354.62,404.41 L 357.70,403.62 L 359.42,403.13 L 360.43,405.56 L 362.95,406.23 L 362.03,409.89 L 362.81,412.39 L 365.73,415.93 L 369.25,416.52 L 372.75,415.75 L 377.36,417.32 L 380.68,416.92 L 385.86,423.54 L 385.03,423.66 L 379.74,420.48 L 374.00,420.64 L 371.80,423.14 L 369.63,423.34 L 368.47,425.77 L 365.85,427.75 L 361.48,431.06 L 359.29,432.73 L 356.80,436.04 L 355.27,440.19 L 356.52,445.41 L 356.53,445.44 L 349.93,447.10 L 345.30,445.85 L 344.41,444.37 L 345.16,442.22 L 342.99,442.03 L 342.18,439.60 L 341.44,437.41 L 339.64,436.95 L 337.83,434.18 L 337.47,436.72 L 335.13,436.46 L 334.04,435.10 L 334.72,431.90 L 334.73,431.73 L 334.05,426.10 L 334.89,423.93 L 333.44,421.36 L 333.08,419.93 L 332.27,418.84 L 340.10,411.65 L 343.49,410.26 L 343.68,406.32 L 350.17,402.79 L 353.55,402.93 Z"/>
+<path class="mun" data-name="Monte Alegre de Sergipe" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 284.91,204.54 L 297.97,207.90 L 304.68,209.62 L 320.06,222.06 L 323.03,224.46 L 322.91,226.70 L 325.71,227.04 L 325.32,229.96 L 319.43,225.34 L 320.05,229.92 L 317.32,228.10 L 314.75,229.89 L 315.62,233.14 L 318.24,233.10 L 315.69,235.31 L 317.12,238.95 L 312.56,240.47 L 312.46,240.45 L 308.26,239.62 L 308.45,237.20 L 306.80,235.62 L 302.76,237.15 L 300.79,234.64 L 299.46,235.62 L 297.22,239.32 L 295.45,237.47 L 291.69,240.06 L 288.59,239.06 L 286.73,241.94 L 285.23,240.16 L 284.68,242.54 L 282.05,243.75 L 279.58,242.30 L 278.20,244.37 L 274.97,243.31 L 274.93,243.30 L 272.38,246.92 L 270.46,241.39 L 268.82,241.74 L 262.33,236.68 L 262.91,235.43 L 260.82,234.88 L 258.87,237.62 L 257.54,236.34 L 255.58,239.72 L 251.63,237.01 L 249.04,240.84 L 245.97,239.61 L 243.09,242.55 L 240.32,242.66 L 237.51,246.72 L 235.21,247.16 L 234.57,249.50 L 232.33,248.50 L 230.55,249.78 L 227.80,247.15 L 224.05,247.30 L 221.69,249.36 L 220.60,248.42 L 211.69,245.71 L 208.43,242.95 L 205.41,242.06 L 203.30,243.09 L 189.54,236.95 L 191.87,251.20 L 190.39,249.09 L 184.11,241.94 L 179.90,232.18 L 175.78,222.61 L 174.70,214.58 L 180.44,213.15 L 192.37,213.75 L 200.22,210.97 L 206.04,212.20 L 206.11,210.55 L 208.64,209.03 L 208.82,210.17 L 212.00,211.80 L 219.52,206.54 L 220.98,209.28 L 223.07,208.81 L 225.63,211.68 L 230.18,210.74 L 232.62,207.08 L 236.35,206.50 L 240.42,209.73 L 242.95,208.32 L 244.61,210.35 L 246.19,209.40 L 247.40,211.10 L 251.53,211.00 L 254.43,208.52 L 258.01,210.16 L 258.68,207.23 L 260.34,207.30 L 261.58,205.70 L 263.29,200.68 L 270.35,200.83 L 277.58,202.66 L 284.91,204.54 Z"/>
+<path class="mun" data-name="Muribeca" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 473.91,314.16 L 488.40,327.08 L 495.42,334.54 L 504.03,343.68 L 508.29,348.20 L 512.92,351.90 L 512.48,355.42 L 512.14,357.13 L 509.86,358.43 L 507.66,358.23 L 504.91,360.86 L 503.41,359.97 L 502.07,360.83 L 501.09,369.51 L 500.31,369.99 L 498.29,367.46 L 494.47,366.93 L 491.36,366.68 L 490.62,365.05 L 489.27,360.01 L 486.74,357.48 L 483.31,351.90 L 484.30,348.94 L 482.18,345.09 L 485.45,340.78 L 483.83,339.51 L 482.99,340.20 L 478.37,333.53 L 477.18,332.95 L 477.31,324.01 L 474.96,323.26 L 470.67,325.42 L 472.79,318.08 L 472.82,317.95 L 472.94,317.54 L 473.91,314.16 Z"/>
+<path class="mun" data-name="Neópolis" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 569.43,299.00 L 572.86,303.07 L 574.30,306.70 L 575.79,305.47 L 582.97,306.70 L 585.52,306.86 L 584.81,305.22 L 586.82,302.45 L 593.02,304.05 L 594.28,303.38 L 604.69,321.38 L 623.89,315.62 L 628.34,313.98 L 633.78,318.99 L 636.80,324.31 L 636.81,324.33 L 635.85,336.68 L 637.37,343.24 L 638.39,345.32 L 638.25,352.31 L 636.92,355.10 L 637.86,358.02 L 636.77,362.72 L 633.18,363.86 L 633.48,365.04 L 630.82,364.74 L 631.34,366.14 L 630.41,365.69 L 629.21,367.43 L 629.35,369.73 L 627.66,367.59 L 625.98,368.98 L 626.50,373.18 L 624.23,379.80 L 627.25,381.34 L 624.08,384.88 L 624.23,386.84 L 622.34,368.54 L 622.21,367.21 L 621.62,363.50 L 621.33,358.44 L 624.72,356.30 L 619.60,355.01 L 618.07,354.46 L 606.00,350.59 L 586.79,352.86 L 580.63,343.36 L 575.37,335.16 L 573.48,328.32 L 574.15,323.30 L 573.01,321.31 L 568.96,318.53 L 564.74,320.27 L 561.87,317.33 L 558.78,316.53 L 558.67,316.41 L 554.67,312.91 L 553.03,309.03 L 550.68,308.44 L 551.04,306.77 L 550.05,307.40 L 550.84,305.65 L 551.17,305.42 L 552.53,304.13 L 555.49,299.18 L 559.13,300.39 L 565.63,296.32 L 566.80,298.97 L 569.43,299.00 Z"/>
+<path class="mun" data-name="Nossa Senhora Aparecida" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 264.56,293.51 L 266.80,294.55 L 268.06,293.65 L 268.47,296.97 L 271.01,298.78 L 272.68,298.10 L 273.17,300.87 L 274.96,299.32 L 274.03,297.87 L 279.25,297.88 L 279.33,300.22 L 277.80,299.83 L 278.37,301.53 L 276.93,301.73 L 279.23,302.94 L 282.18,306.87 L 284.47,306.23 L 285.28,309.25 L 287.50,309.07 L 287.71,309.12 L 289.36,311.86 L 290.94,309.86 L 291.63,311.21 L 293.83,310.59 L 294.35,311.60 L 298.02,307.27 L 298.85,308.41 L 300.11,306.87 L 299.85,311.60 L 303.69,308.98 L 304.73,309.81 L 305.18,306.62 L 306.29,307.16 L 307.37,305.38 L 308.44,305.78 L 308.79,307.48 L 307.66,307.83 L 308.60,308.79 L 311.50,310.44 L 313.23,309.47 L 312.71,311.25 L 314.88,312.49 L 315.40,311.61 L 317.33,312.01 L 317.14,314.79 L 319.92,316.27 L 320.23,314.20 L 322.95,314.53 L 322.86,315.83 L 323.74,315.78 L 324.83,314.64 L 326.49,315.32 L 327.42,309.99 L 329.16,310.38 L 328.55,315.54 L 328.11,316.86 L 327.83,320.22 L 325.49,330.59 L 326.73,338.54 L 326.34,356.86 L 326.34,356.91 L 322.74,351.56 L 303.04,373.04 L 299.36,373.18 L 296.32,373.28 L 285.77,373.66 L 276.14,374.00 L 275.93,373.70 L 275.89,373.63 L 272.26,367.12 L 265.93,339.94 L 265.04,324.63 L 260.95,318.01 L 260.93,317.97 L 252.75,304.89 L 258.20,294.92 L 259.12,295.36 L 260.05,292.78 L 263.87,291.04 L 264.56,293.51 Z"/>
+<path class="mun" data-name="Nossa Senhora da Glória" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 326.46,225.44 L 336.77,233.99 L 336.80,234.02 L 349.22,244.26 L 355.50,249.26 L 350.44,259.60 L 361.95,258.66 L 355.28,279.99 L 353.77,280.20 L 344.64,281.52 L 336.06,282.77 L 333.63,290.22 L 330.95,296.76 L 327.37,293.02 L 329.16,310.38 L 327.42,309.99 L 326.49,315.32 L 324.83,314.64 L 323.74,315.78 L 322.86,315.83 L 322.95,314.53 L 320.23,314.20 L 319.92,316.27 L 317.14,314.79 L 317.33,312.01 L 315.40,311.61 L 314.88,312.49 L 312.71,311.25 L 313.23,309.47 L 311.50,310.44 L 308.60,308.79 L 307.66,307.83 L 308.79,307.48 L 308.44,305.78 L 307.37,305.38 L 306.29,307.16 L 305.18,306.62 L 304.73,309.81 L 303.69,308.98 L 299.85,311.60 L 300.11,306.87 L 298.85,308.41 L 298.02,307.27 L 294.35,311.60 L 293.83,310.59 L 291.63,311.21 L 290.94,309.86 L 289.36,311.86 L 287.71,309.12 L 287.50,309.07 L 285.28,309.25 L 284.47,306.23 L 282.18,306.87 L 279.23,302.94 L 276.93,301.73 L 278.37,301.53 L 277.80,299.83 L 279.33,300.22 L 279.25,297.88 L 274.03,297.87 L 274.96,299.32 L 273.17,300.87 L 272.68,298.10 L 271.01,298.78 L 268.47,296.97 L 268.06,293.65 L 266.80,294.55 L 264.56,293.51 L 263.87,291.04 L 260.05,292.78 L 259.12,295.36 L 258.20,294.92 L 256.54,293.61 L 256.84,292.03 L 254.48,290.85 L 251.97,294.44 L 250.82,291.12 L 248.31,292.46 L 239.02,285.52 L 237.17,282.96 L 229.83,278.33 L 226.99,279.21 L 226.91,279.12 L 224.25,277.44 L 221.89,278.77 L 219.81,276.36 L 220.03,273.37 L 213.85,271.41 L 199.93,276.20 L 196.08,274.52 L 190.77,271.40 L 189.75,268.70 L 192.89,255.31 L 191.87,251.20 L 189.54,236.95 L 203.30,243.09 L 205.41,242.06 L 208.43,242.95 L 211.69,245.71 L 220.60,248.42 L 221.69,249.36 L 224.05,247.30 L 227.80,247.15 L 230.55,249.78 L 232.33,248.50 L 234.57,249.50 L 235.21,247.16 L 237.51,246.72 L 240.32,242.66 L 243.09,242.55 L 245.97,239.61 L 249.04,240.84 L 251.63,237.01 L 255.58,239.72 L 257.54,236.34 L 258.87,237.62 L 260.82,234.88 L 262.91,235.43 L 262.33,236.68 L 268.82,241.74 L 270.46,241.39 L 272.38,246.92 L 274.93,243.30 L 274.97,243.31 L 278.20,244.37 L 279.58,242.30 L 282.05,243.75 L 284.68,242.54 L 285.23,240.16 L 286.73,241.94 L 288.59,239.06 L 291.69,240.06 L 295.45,237.47 L 297.22,239.32 L 299.46,235.62 L 300.79,234.64 L 302.76,237.15 L 306.80,235.62 L 308.45,237.20 L 308.26,239.62 L 312.46,240.45 L 312.56,240.47 L 317.12,238.95 L 315.69,235.31 L 318.24,233.10 L 315.62,233.14 L 314.75,229.89 L 317.32,228.10 L 320.05,229.92 L 319.43,225.34 L 325.32,229.96 L 325.71,227.04 L 322.91,226.70 L 323.03,224.46 L 326.46,225.44 Z"/>
+<path class="mun" data-name="Nossa Senhora das Dores" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 390.84,313.97 L 390.84,315.45 L 385.79,320.21 L 389.30,328.80 L 389.27,335.43 L 391.87,337.02 L 393.44,341.82 L 393.45,342.02 L 394.52,343.29 L 395.13,343.78 L 399.59,347.88 L 399.75,348.02 L 400.20,349.03 L 401.32,351.49 L 407.58,353.21 L 410.87,356.64 L 412.93,356.30 L 415.08,357.37 L 417.72,354.84 L 419.46,354.91 L 421.67,356.17 L 421.30,357.54 L 422.84,356.86 L 424.27,358.28 L 428.69,353.13 L 430.13,354.87 L 432.64,352.83 L 433.71,354.20 L 433.93,354.44 L 435.25,355.43 L 436.54,356.21 L 436.11,360.01 L 435.76,363.10 L 433.73,366.16 L 427.55,370.09 L 426.66,376.51 L 426.62,377.03 L 426.04,390.65 L 419.83,398.87 L 418.42,401.00 L 418.41,401.02 L 410.93,411.49 L 411.89,412.49 L 412.04,412.65 L 414.08,414.78 L 412.76,417.80 L 405.85,422.51 L 401.21,428.23 L 402.84,430.85 L 402.03,434.69 L 399.68,432.25 L 397.19,431.69 L 396.96,429.75 L 393.18,428.67 L 392.49,426.96 L 390.42,426.99 L 385.86,423.54 L 380.68,416.92 L 377.36,417.32 L 372.75,415.75 L 369.25,416.52 L 365.73,415.93 L 362.81,412.39 L 362.03,409.89 L 362.95,406.23 L 360.43,405.56 L 359.42,403.13 L 358.96,402.35 L 357.63,400.16 L 357.50,399.95 L 353.97,395.56 L 353.87,395.44 L 345.19,381.77 L 349.02,384.87 L 366.33,378.86 L 366.63,378.76 L 376.39,375.11 L 374.18,373.81 L 370.65,375.69 L 369.92,372.54 L 371.65,371.00 L 370.84,368.82 L 369.06,369.03 L 368.71,366.23 L 370.00,364.99 L 369.08,363.23 L 366.11,364.25 L 364.05,360.34 L 360.37,363.42 L 357.74,363.13 L 355.48,362.56 L 354.50,360.74 L 355.34,359.85 L 358.19,358.49 L 355.45,357.34 L 356.26,355.58 L 354.99,353.44 L 354.28,350.85 L 349.38,350.71 L 352.01,344.77 L 350.45,343.43 L 351.10,342.64 L 354.42,342.87 L 357.45,341.32 L 357.54,337.97 L 361.06,335.34 L 360.54,332.61 L 363.89,331.15 L 366.64,325.77 L 366.14,323.86 L 368.09,322.91 L 368.98,320.79 L 371.70,320.52 L 372.09,318.55 L 374.52,317.70 L 378.01,318.78 L 377.10,316.67 L 376.69,315.72 L 379.94,314.64 L 383.80,315.23 L 387.74,312.56 L 390.12,313.64 L 390.84,313.97 Z"/>
+<path class="mun" data-name="Nossa Senhora de Lourdes" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 466.81,246.63 L 465.43,250.78 L 462.38,252.55 L 462.44,250.87 L 461.16,251.02 L 460.06,247.88 L 456.94,248.73 L 453.48,252.17 L 452.38,235.69 L 453.38,230.41 L 453.80,228.23 L 454.56,224.20 L 454.94,224.15 L 467.39,221.64 L 474.88,215.28 L 489.93,211.03 L 492.72,210.24 L 493.36,210.06 L 492.37,220.08 L 494.28,227.97 L 482.69,231.70 L 480.82,232.30 L 474.24,240.16 L 471.36,242.36 L 466.81,246.63 Z"/>
+<path class="mun" data-name="Nossa Senhora do Socorro" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 460.53,509.79 L 465.97,515.05 L 466.50,520.76 L 464.22,525.65 L 461.00,524.38 L 456.14,524.39 L 452.36,529.00 L 449.87,524.34 L 446.68,523.97 L 441.52,528.35 L 439.18,528.94 L 441.43,531.90 L 439.05,532.52 L 438.40,533.88 L 439.69,535.97 L 437.88,539.29 L 440.35,544.91 L 436.83,543.41 L 423.02,548.51 L 420.71,546.73 L 417.54,547.00 L 416.23,543.89 L 416.02,543.76 L 414.00,542.50 L 413.97,539.59 L 412.04,537.48 L 409.38,536.49 L 407.22,532.77 L 404.49,533.97 L 401.42,528.91 L 396.89,529.56 L 390.45,525.99 L 386.92,524.40 L 385.17,520.69 L 381.63,519.95 L 379.27,517.69 L 377.27,519.61 L 370.33,519.73 L 367.14,517.86 L 363.71,512.47 L 360.51,512.15 L 360.40,512.13 L 360.66,511.94 L 387.86,512.80 L 392.29,513.81 L 398.22,518.24 L 401.45,518.12 L 407.46,519.96 L 407.46,520.23 L 411.01,520.70 L 413.34,516.12 L 419.00,513.82 L 419.28,512.24 L 420.76,512.55 L 426.73,513.40 L 431.48,512.80 L 436.34,511.05 L 438.91,507.43 L 443.00,508.93 L 453.52,508.72 L 460.53,509.79 Z"/>
+<path class="mun" data-name="Pacatuba" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 616.77,421.44 L 597.23,436.14 L 594.74,435.02 L 592.70,434.10 L 586.93,431.50 L 584.84,430.56 L 569.14,423.49 L 575.30,399.66 L 576.14,396.43 L 582.27,372.74 L 582.91,370.13 L 586.79,352.86 L 606.00,350.59 L 618.07,354.46 L 619.60,355.01 L 624.72,356.30 L 621.33,358.44 L 621.62,363.50 L 622.21,367.21 L 622.34,368.54 L 624.23,386.84 L 629.64,387.91 L 661.23,392.88 L 666.66,398.72 L 661.87,402.40 L 624.18,417.92 L 616.77,421.44 Z"/>
+<path class="mun" data-name="Pedra Mole" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 241.81,427.09 L 238.52,431.99 L 236.28,443.24 L 234.04,445.87 L 231.63,453.30 L 233.50,455.84 L 233.28,459.51 L 234.03,463.85 L 232.51,465.61 L 233.89,467.51 L 233.36,469.06 L 231.57,465.72 L 228.01,468.11 L 225.85,465.82 L 229.80,463.73 L 228.48,461.38 L 225.32,459.91 L 226.14,456.99 L 225.22,456.11 L 222.16,456.71 L 219.17,454.40 L 218.72,451.44 L 216.52,452.10 L 215.12,450.18 L 220.98,443.13 L 222.55,440.13 L 221.45,440.02 L 219.41,440.89 L 217.80,437.82 L 214.65,438.19 L 212.99,434.50 L 215.72,428.78 L 215.93,428.88 L 218.40,427.95 L 218.41,422.42 L 221.62,418.81 L 223.09,410.01 L 224.39,400.49 L 229.40,408.15 L 238.65,422.27 L 241.81,427.09 Z"/>
+<path class="mun" data-name="Pedrinhas" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 226.17,642.17 L 227.97,645.83 L 231.12,643.25 L 231.43,643.39 L 241.78,648.94 L 242.09,649.10 L 253.66,650.39 L 254.49,649.56 L 254.65,649.66 L 258.22,650.89 L 257.92,654.84 L 253.99,656.17 L 251.16,655.43 L 243.97,657.06 L 241.55,656.03 L 238.25,657.29 L 234.72,656.72 L 230.38,664.12 L 228.45,662.98 L 226.21,657.66 L 223.78,651.32 L 221.66,651.68 L 221.35,649.16 L 218.38,647.03 L 218.22,646.88 L 223.35,638.83 L 226.17,642.17 Z"/>
+<path class="mun" data-name="Pinhão" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 193.45,390.49 L 208.73,394.05 L 210.94,391.63 L 224.39,400.49 L 223.09,410.01 L 221.62,418.81 L 218.41,422.42 L 218.40,427.95 L 215.93,428.88 L 215.72,428.78 L 212.99,434.50 L 214.65,438.19 L 217.80,437.82 L 213.94,442.28 L 211.24,440.54 L 212.03,437.99 L 208.80,436.79 L 205.56,437.54 L 201.83,433.30 L 200.06,434.14 L 195.64,432.21 L 195.48,427.57 L 193.83,426.61 L 188.88,425.74 L 183.31,422.19 L 180.64,425.64 L 177.95,423.57 L 176.64,419.96 L 172.29,419.69 L 172.28,419.67 L 173.97,418.05 L 171.90,417.53 L 172.22,415.31 L 170.50,414.60 L 171.32,410.67 L 168.91,408.98 L 168.58,406.54 L 171.80,407.20 L 173.21,405.82 L 172.68,403.44 L 174.74,402.42 L 176.31,402.76 L 175.29,399.60 L 177.73,394.52 L 180.16,392.90 L 184.32,391.43 L 190.97,392.13 L 193.45,390.49 Z"/>
+<path class="mun" data-name="Pirambu" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 586.14,441.13 L 575.09,446.18 L 547.77,464.47 L 534.59,475.94 L 530.95,479.04 L 528.24,478.59 L 525.30,479.22 L 524.07,478.16 L 525.33,476.63 L 524.17,476.07 L 525.84,474.77 L 524.50,472.04 L 524.78,465.71 L 523.02,465.80 L 521.33,461.08 L 519.14,461.94 L 518.34,460.95 L 517.66,461.99 L 519.70,462.93 L 516.74,463.26 L 515.46,464.95 L 513.61,463.74 L 513.89,460.42 L 510.67,454.57 L 505.43,454.11 L 510.24,450.57 L 511.80,449.43 L 512.86,448.65 L 514.38,449.13 L 516.46,448.02 L 531.37,436.33 L 536.08,432.65 L 556.82,416.39 L 563.49,418.26 L 567.25,423.21 L 569.14,423.49 L 584.84,430.56 L 586.93,431.50 L 592.70,434.10 L 594.74,435.02 L 597.23,436.14 L 586.14,441.13 Z"/>
+<path class="mun" data-name="Poço Redondo" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 276.74,154.39 L 269.99,164.87 L 268.88,166.59 L 255.58,187.22 L 255.54,187.27 L 253.77,189.90 L 249.76,191.49 L 245.30,191.55 L 241.81,193.35 L 237.20,199.28 L 233.49,200.63 L 232.62,207.08 L 230.18,210.74 L 225.63,211.68 L 223.07,208.81 L 220.98,209.28 L 219.52,206.54 L 212.00,211.80 L 208.82,210.17 L 208.64,209.03 L 206.11,210.55 L 206.04,212.20 L 200.22,210.97 L 192.37,213.75 L 180.44,213.15 L 174.70,214.58 L 174.69,214.11 L 174.92,207.06 L 171.28,200.59 L 165.26,198.63 L 155.76,193.27 L 153.58,194.00 L 141.05,192.18 L 138.61,191.20 L 136.70,188.35 L 133.27,188.51 L 137.02,183.95 L 137.37,180.25 L 139.31,177.25 L 146.51,171.55 L 147.72,168.71 L 151.46,168.99 L 153.07,167.92 L 158.44,163.13 L 157.98,151.30 L 158.31,146.89 L 159.97,144.20 L 158.13,142.03 L 161.64,126.98 L 163.50,124.98 L 163.53,120.54 L 163.46,120.21 L 168.39,112.32 L 167.51,107.17 L 171.03,92.82 L 172.09,90.34 L 174.98,89.67 L 175.48,89.56 L 190.11,86.19 L 190.30,86.15 L 202.25,83.39 L 232.53,76.42 L 234.79,80.62 L 236.07,83.00 L 240.39,86.01 L 255.56,95.92 L 256.24,96.29 L 263.67,101.85 L 267.27,103.58 L 274.02,104.30 L 283.54,105.60 L 284.78,105.89 L 303.34,106.61 L 305.85,107.62 L 291.16,131.95 L 283.46,143.97 L 283.44,144.01 L 282.84,144.94 L 282.81,144.98 L 276.74,154.39 Z"/>
+<path class="mun" data-name="Poço Verde" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 97.50,467.43 L 102.14,474.31 L 105.38,475.92 L 113.38,484.02 L 115.45,484.83 L 119.39,483.38 L 120.07,483.13 L 120.40,488.51 L 120.40,488.54 L 120.97,498.11 L 120.94,509.76 L 100.35,506.02 L 93.18,507.00 L 82.55,507.09 L 81.12,508.37 L 78.28,508.40 L 78.28,509.52 L 74.07,511.45 L 72.29,511.31 L 70.25,513.76 L 67.84,512.89 L 66.47,516.41 L 64.13,518.30 L 63.06,521.57 L 66.06,525.91 L 62.55,534.28 L 60.16,535.40 L 58.98,537.57 L 52.23,537.66 L 50.27,541.68 L 49.74,545.38 L 47.42,547.48 L 48.46,552.74 L 43.56,553.99 L 36.17,551.82 L 35.52,550.68 L 36.86,547.71 L 34.51,545.69 L 32.46,549.15 L 30.99,546.27 L 26.87,543.67 L 25.48,535.33 L 23.15,530.62 L 22.67,522.35 L 24.72,515.03 L 22.01,509.97 L 20.78,510.56 L 20.00,508.70 L 23.71,504.64 L 23.08,503.10 L 23.19,498.71 L 24.40,497.55 L 29.77,493.59 L 32.75,483.91 L 32.74,483.89 L 30.15,477.03 L 29.89,476.29 L 30.88,472.11 L 32.58,469.19 L 36.92,466.86 L 41.58,465.55 L 45.60,465.09 L 47.43,467.36 L 52.44,467.43 L 56.71,469.44 L 64.87,469.61 L 68.71,467.70 L 73.01,467.55 L 85.17,468.60 L 91.92,464.97 L 92.72,460.32 L 94.55,463.05 L 95.07,463.82 L 97.50,467.43 Z"/>
+<path class="mun" data-name="Porto da Folha" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 392.39,168.59 L 391.39,185.27 L 382.84,185.78 L 381.36,188.31 L 378.72,186.82 L 377.09,188.36 L 379.65,198.89 L 372.64,196.97 L 371.32,198.92 L 372.10,204.88 L 369.11,207.15 L 366.28,202.19 L 364.13,201.14 L 362.35,201.17 L 361.16,204.19 L 357.84,206.05 L 355.15,207.11 L 356.74,205.00 L 354.49,202.77 L 355.01,198.86 L 352.66,196.27 L 351.00,198.43 L 351.20,200.96 L 349.16,201.20 L 347.98,198.97 L 346.99,201.25 L 347.08,202.94 L 349.32,202.68 L 347.29,207.06 L 345.12,206.28 L 343.20,207.12 L 343.59,205.08 L 342.47,204.01 L 337.87,205.07 L 340.31,207.65 L 340.25,209.19 L 337.62,209.20 L 338.98,210.94 L 335.90,212.70 L 336.44,215.40 L 333.29,216.44 L 332.32,219.63 L 330.29,218.24 L 329.93,220.89 L 326.90,220.68 L 323.03,224.46 L 320.06,222.06 L 304.68,209.62 L 297.97,207.90 L 284.91,204.54 L 277.58,202.66 L 270.35,200.83 L 263.29,200.68 L 261.58,205.70 L 260.34,207.30 L 258.68,207.23 L 258.01,210.16 L 254.43,208.52 L 251.53,211.00 L 247.40,211.10 L 246.19,209.40 L 244.61,210.35 L 242.95,208.32 L 240.42,209.73 L 236.35,206.50 L 232.62,207.08 L 233.49,200.63 L 237.20,199.28 L 241.81,193.35 L 245.30,191.55 L 249.76,191.49 L 253.77,189.90 L 255.54,187.27 L 255.58,187.22 L 268.88,166.59 L 269.99,164.87 L 276.74,154.39 L 282.81,144.98 L 282.84,144.94 L 283.44,144.01 L 283.46,143.97 L 291.16,131.95 L 305.85,107.62 L 311.94,109.04 L 323.89,112.64 L 327.15,114.72 L 331.29,118.08 L 340.34,120.56 L 344.07,121.58 L 349.40,123.91 L 352.43,126.68 L 359.39,134.12 L 362.86,135.63 L 368.18,136.79 L 372.50,138.04 L 380.30,145.32 L 382.97,148.99 L 386.54,158.10 L 390.82,162.36 L 394.11,163.64 L 392.39,168.59 Z"/>
+<path class="mun" data-name="Propriá" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 532.45,270.78 L 532.95,271.59 L 533.70,270.89 L 534.04,271.97 L 537.72,277.46 L 543.59,281.67 L 543.87,281.85 L 547.72,283.73 L 559.31,285.62 L 566.91,287.79 L 568.91,289.93 L 566.92,293.25 L 571.18,295.42 L 574.11,295.39 L 580.06,300.20 L 586.82,302.45 L 584.81,305.22 L 585.52,306.86 L 582.97,306.70 L 575.79,305.47 L 574.30,306.70 L 572.86,303.07 L 569.43,299.00 L 566.80,298.97 L 565.63,296.32 L 559.13,300.39 L 555.49,299.18 L 552.53,304.13 L 551.17,305.42 L 550.84,305.65 L 550.05,307.40 L 546.76,312.46 L 543.77,312.43 L 537.47,309.66 L 537.13,306.52 L 535.44,305.01 L 536.33,302.36 L 534.49,299.06 L 533.00,290.98 L 531.80,290.21 L 525.94,286.47 L 526.12,278.09 L 528.50,270.63 L 530.00,267.13 L 532.45,270.78 Z"/>
+<path class="mun" data-name="Riachão do Dantas" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 155.24,524.15 L 159.12,536.88 L 155.96,545.47 L 164.54,550.38 L 166.32,550.34 L 168.74,555.29 L 170.81,556.70 L 169.09,558.33 L 169.30,561.62 L 168.98,563.78 L 171.66,567.49 L 169.86,570.41 L 174.14,571.23 L 175.44,573.38 L 175.38,576.83 L 177.50,577.59 L 179.06,576.18 L 180.08,579.10 L 184.14,579.58 L 186.03,582.12 L 188.55,577.83 L 190.15,579.00 L 192.06,577.32 L 193.05,581.27 L 194.98,581.24 L 195.82,578.64 L 197.77,579.09 L 200.33,576.33 L 202.19,578.89 L 205.00,579.04 L 205.52,575.57 L 203.46,573.78 L 204.22,571.19 L 210.81,572.38 L 213.18,573.74 L 215.30,575.18 L 222.88,584.79 L 225.69,585.07 L 229.34,583.36 L 231.11,586.73 L 236.20,590.05 L 238.23,592.55 L 240.78,592.32 L 244.23,598.98 L 248.71,600.06 L 251.39,601.11 L 250.79,602.00 L 252.45,604.15 L 250.23,605.96 L 248.15,607.96 L 244.46,605.60 L 238.78,615.61 L 239.79,622.00 L 230.33,630.34 L 230.30,630.37 L 221.85,637.09 L 217.68,640.47 L 215.71,637.99 L 213.16,635.57 L 209.92,636.66 L 206.26,631.25 L 204.39,632.77 L 201.47,630.65 L 197.51,627.82 L 196.07,628.13 L 192.44,624.56 L 189.10,624.38 L 189.03,624.37 L 186.06,624.79 L 167.49,615.55 L 158.81,604.71 L 148.52,591.75 L 144.66,587.57 L 141.09,584.16 L 135.50,579.01 L 134.88,577.06 L 132.41,576.62 L 129.64,573.78 L 128.74,569.85 L 129.91,567.86 L 131.40,569.37 L 134.39,564.75 L 130.45,554.95 L 125.82,550.23 L 125.37,547.65 L 119.97,530.15 L 132.28,533.29 L 132.49,530.76 L 134.80,530.39 L 138.14,529.93 L 147.76,527.18 L 155.18,524.15 L 155.24,524.15 Z"/>
+<path class="mun" data-name="Riachuelo" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 401.32,465.23 L 402.96,466.79 L 402.61,468.92 L 403.88,470.44 L 401.03,472.28 L 406.07,473.52 L 408.44,472.38 L 409.16,471.86 L 410.89,469.66 L 412.97,471.66 L 415.54,473.00 L 414.26,475.59 L 418.22,476.46 L 417.15,479.11 L 418.07,481.96 L 415.42,482.70 L 398.13,487.51 L 396.15,485.02 L 393.25,485.73 L 387.13,492.03 L 376.96,482.31 L 377.49,480.53 L 373.56,477.17 L 373.59,473.73 L 374.42,472.57 L 373.38,470.80 L 375.74,467.04 L 377.46,468.43 L 379.78,467.62 L 379.77,465.72 L 381.99,463.74 L 384.95,464.71 L 385.42,466.20 L 387.09,465.24 L 389.50,465.99 L 390.31,464.57 L 391.56,464.58 L 392.87,463.85 L 393.84,465.84 L 394.97,464.58 L 391.82,461.55 L 393.50,457.10 L 392.19,453.19 L 393.05,453.27 L 403.99,454.22 L 403.94,458.94 L 404.97,460.05 L 402.60,462.03 L 401.32,465.23 Z"/>
+<path class="mun" data-name="Ribeirópolis" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 341.89,370.16 L 341.63,372.96 L 342.63,375.87 L 345.19,381.77 L 353.87,395.44 L 353.97,395.56 L 357.50,399.95 L 357.63,400.16 L 358.96,402.35 L 359.42,403.13 L 357.70,403.62 L 354.62,404.41 L 353.55,402.93 L 350.17,402.79 L 343.68,406.32 L 343.49,410.26 L 340.10,411.65 L 332.27,418.84 L 325.86,417.38 L 322.10,416.53 L 314.88,420.12 L 307.63,423.74 L 303.78,414.45 L 303.13,412.88 L 303.11,412.85 L 293.85,399.25 L 293.47,398.70 L 291.26,393.84 L 289.63,390.27 L 276.14,374.00 L 285.77,373.66 L 296.32,373.28 L 299.36,373.18 L 303.04,373.04 L 322.74,351.56 L 326.34,356.91 L 340.70,368.39 L 341.89,370.16 Z"/>
+<path class="mun" data-name="Rosário do Catete" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 473.34,455.81 L 471.32,457.09 L 475.26,461.43 L 480.20,463.99 L 484.46,463.04 L 486.40,463.23 L 488.22,465.22 L 491.47,464.62 L 495.41,467.83 L 485.04,477.32 L 478.92,474.32 L 473.35,475.18 L 471.13,471.06 L 452.14,480.63 L 451.54,481.14 L 454.28,469.47 L 457.78,463.52 L 455.50,459.85 L 451.95,459.66 L 449.63,457.07 L 446.16,457.76 L 444.52,456.47 L 443.20,452.93 L 444.04,445.99 L 444.61,443.42 L 443.24,440.82 L 446.46,439.08 L 449.02,437.69 L 449.37,437.50 L 449.53,437.12 L 450.30,431.31 L 464.05,434.95 L 473.26,440.67 L 473.19,453.70 L 473.34,455.81 Z"/>
+<path class="mun" data-name="Salgado" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 308.75,629.52 L 298.14,632.03 L 293.74,633.07 L 293.15,633.21 L 276.44,637.17 L 273.46,632.51 L 277.50,632.48 L 276.54,630.18 L 278.45,628.35 L 275.79,627.93 L 274.05,627.62 L 279.25,610.88 L 283.12,594.65 L 282.29,573.43 L 282.59,572.48 L 282.60,572.45 L 283.27,570.28 L 286.41,560.17 L 286.92,560.15 L 291.51,561.41 L 309.87,566.43 L 309.97,566.46 L 315.78,568.14 L 317.80,570.37 L 320.18,570.92 L 320.78,575.24 L 325.60,578.14 L 328.39,585.31 L 328.77,587.83 L 328.85,587.93 L 334.34,594.86 L 322.17,603.32 L 316.38,607.35 L 316.24,611.09 L 319.26,614.20 L 318.47,616.16 L 316.68,616.57 L 316.06,618.20 L 317.48,618.86 L 316.72,622.23 L 308.75,629.52 Z"/>
+<path class="mun" data-name="Santa Luzia do Itanhy" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 255.44,702.80 L 256.62,703.01 L 260.34,696.63 L 263.88,696.98 L 267.17,695.71 L 275.44,688.87 L 282.62,689.06 L 285.02,686.95 L 292.77,688.52 L 298.05,688.25 L 307.49,691.04 L 311.10,687.55 L 311.26,687.48 L 313.31,684.61 L 320.75,689.69 L 322.24,687.83 L 327.56,687.42 L 330.51,692.11 L 335.08,694.33 L 338.56,700.93 L 334.58,707.47 L 334.61,712.99 L 328.10,721.73 L 326.68,728.35 L 327.20,733.12 L 327.22,733.22 L 325.20,734.82 L 322.27,735.72 L 318.65,733.40 L 315.36,733.90 L 313.20,739.68 L 307.98,740.89 L 306.82,743.62 L 304.85,741.83 L 304.00,742.01 L 304.63,742.98 L 300.87,743.15 L 298.98,740.59 L 296.13,740.61 L 295.93,740.51 L 292.36,734.88 L 290.74,729.80 L 284.31,732.94 L 280.75,730.45 L 271.97,729.89 L 269.90,728.62 L 267.94,727.42 L 266.92,726.79 L 264.55,725.33 L 264.47,725.29 L 256.08,720.14 L 256.05,720.12 L 248.17,712.91 L 247.61,712.40 L 247.50,712.30 L 242.64,707.86 L 242.60,707.82 L 229.60,695.92 L 229.27,695.61 L 226.43,693.02 L 223.11,689.97 L 233.64,683.19 L 250.10,698.00 L 253.66,701.20 L 254.17,701.66 L 255.44,702.80 Z"/>
+<path class="mun" data-name="Santana do São Francisco" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 623.89,315.62 L 604.69,321.38 L 594.28,303.38 L 595.12,302.02 L 603.00,300.34 L 607.95,295.56 L 612.31,295.95 L 612.90,296.11 L 614.95,297.00 L 616.22,298.05 L 619.79,302.46 L 624.44,306.52 L 625.93,307.36 L 627.52,308.58 L 628.34,313.98 L 623.89,315.62 Z"/>
+<path class="mun" data-name="Santa Rosa de Lima" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 379.74,420.48 L 385.03,423.66 L 385.86,423.54 L 390.42,426.99 L 392.49,426.96 L 393.18,428.67 L 396.96,429.75 L 397.19,431.69 L 399.68,432.25 L 402.03,434.69 L 402.64,436.02 L 406.21,435.57 L 409.25,440.61 L 410.57,441.00 L 409.76,443.73 L 410.75,445.98 L 407.62,447.11 L 407.35,449.28 L 406.08,450.82 L 407.21,451.22 L 406.45,454.13 L 403.99,454.22 L 393.05,453.27 L 392.19,453.19 L 389.50,449.73 L 386.31,448.42 L 386.47,444.48 L 381.79,443.83 L 378.54,438.70 L 374.48,437.71 L 373.91,433.02 L 370.17,429.36 L 368.81,429.45 L 368.47,425.77 L 369.63,423.34 L 371.80,423.14 L 374.00,420.64 L 379.74,420.48 Z"/>
+<path class="mun" data-name="Santo Amaro das Brotas" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 507.64,457.61 L 506.88,463.31 L 508.47,462.86 L 509.45,464.71 L 509.57,463.00 L 511.97,461.96 L 512.96,459.87 L 513.89,460.42 L 513.61,463.74 L 515.46,464.95 L 516.74,463.26 L 519.70,462.93 L 517.66,461.99 L 518.34,460.95 L 519.14,461.94 L 521.33,461.08 L 523.02,465.80 L 524.78,465.71 L 524.50,472.04 L 525.84,474.77 L 524.17,476.07 L 525.33,476.63 L 524.07,478.16 L 522.61,477.32 L 519.97,480.63 L 514.29,489.87 L 504.50,495.89 L 503.98,495.29 L 503.45,496.57 L 500.37,495.36 L 499.59,498.64 L 496.60,499.59 L 493.13,503.54 L 491.83,503.52 L 491.94,506.54 L 490.10,507.47 L 488.75,512.54 L 485.10,512.22 L 483.71,513.51 L 483.00,512.10 L 481.61,513.84 L 484.04,516.50 L 483.49,518.41 L 481.16,519.66 L 479.13,517.97 L 478.23,519.92 L 479.16,521.65 L 477.90,522.81 L 475.11,522.29 L 473.96,524.35 L 471.60,524.16 L 471.31,528.12 L 468.47,529.02 L 467.05,531.95 L 462.74,531.54 L 464.22,525.65 L 466.50,520.76 L 465.97,515.05 L 460.53,509.79 L 453.52,508.72 L 449.69,502.94 L 445.27,499.52 L 444.96,493.83 L 447.73,492.07 L 449.67,492.33 L 451.78,488.69 L 451.41,481.86 L 451.54,481.14 L 452.14,480.63 L 471.13,471.06 L 473.35,475.18 L 478.92,474.32 L 485.04,477.32 L 495.41,467.83 L 496.00,467.25 L 500.92,461.46 L 507.64,457.61 Z"/>
+<path class="mun" data-name="São Cristóvão" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 370.33,519.73 L 377.27,519.61 L 379.27,517.69 L 381.63,519.95 L 385.17,520.69 L 386.92,524.40 L 390.45,525.99 L 396.89,529.56 L 401.42,528.91 L 404.49,533.97 L 407.22,532.77 L 409.38,536.49 L 412.04,537.48 L 413.97,539.59 L 414.00,542.50 L 416.02,543.76 L 416.23,543.89 L 417.54,547.00 L 420.71,546.73 L 423.02,548.51 L 436.83,543.41 L 440.35,544.91 L 443.80,552.78 L 440.79,560.71 L 439.72,563.53 L 426.41,598.71 L 424.29,596.60 L 419.85,595.28 L 416.62,599.55 L 413.46,603.79 L 414.04,606.16 L 417.45,609.36 L 416.17,614.17 L 409.96,609.85 L 402.12,606.95 L 396.82,603.43 L 394.80,599.29 L 393.90,590.02 L 384.19,587.87 L 372.66,585.08 L 372.48,583.61 L 368.80,581.36 L 367.46,578.79 L 365.85,574.18 L 365.84,574.15 L 365.08,572.48 L 364.80,569.73 L 356.54,566.56 L 357.98,564.21 L 354.87,561.55 L 354.06,557.25 L 352.93,554.77 L 355.50,552.15 L 356.46,545.61 L 360.40,513.02 L 360.51,512.15 L 363.71,512.47 L 367.14,517.86 L 370.33,519.73 Z"/>
+<path class="mun" data-name="São Domingos" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 260.51,463.12 L 262.01,467.23 L 261.43,470.68 L 267.78,479.25 L 269.91,481.98 L 271.63,484.17 L 270.56,485.56 L 269.36,488.10 L 271.13,491.04 L 272.10,492.20 L 275.36,494.04 L 277.61,492.76 L 280.39,494.47 L 280.81,493.63 L 283.31,494.33 L 282.62,496.69 L 285.24,497.96 L 286.30,497.37 L 285.70,500.34 L 287.68,499.69 L 287.43,501.67 L 284.74,503.75 L 284.67,503.80 L 286.34,504.89 L 284.66,507.42 L 289.20,509.81 L 290.93,509.34 L 294.46,512.45 L 290.18,513.34 L 289.46,516.51 L 287.29,516.71 L 278.62,514.64 L 277.27,513.36 L 274.59,515.20 L 269.62,513.79 L 266.83,514.95 L 263.76,513.78 L 257.94,508.43 L 257.84,508.15 L 256.70,505.70 L 253.11,504.86 L 251.81,500.56 L 251.89,498.55 L 256.71,493.16 L 254.08,487.99 L 249.51,480.85 L 244.79,480.43 L 246.44,477.96 L 245.02,474.77 L 245.88,472.17 L 250.54,468.17 L 250.22,467.24 L 252.72,467.45 L 253.43,465.23 L 254.86,466.17 L 253.97,462.92 L 255.18,460.38 L 258.51,461.26 L 260.51,463.12 Z"/>
+<path class="mun" data-name="São Francisco" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 537.47,309.66 L 543.77,312.43 L 542.38,314.76 L 544.34,317.43 L 542.99,317.55 L 540.75,325.50 L 536.56,329.11 L 536.13,334.28 L 532.78,340.66 L 530.38,343.94 L 515.90,345.50 L 512.92,351.90 L 508.29,348.20 L 508.88,342.99 L 509.09,341.22 L 513.81,332.02 L 513.10,322.34 L 519.15,313.60 L 521.09,312.12 L 523.15,312.22 L 530.27,305.28 L 534.49,299.06 L 536.33,302.36 L 535.44,305.01 L 537.13,306.52 L 537.47,309.66 Z"/>
+<path class="mun" data-name="São Miguel do Aleixo" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 332.58,309.06 L 334.20,311.17 L 335.21,310.86 L 334.97,315.22 L 335.74,316.66 L 333.47,319.92 L 334.87,320.75 L 336.74,319.20 L 338.42,319.78 L 340.09,324.66 L 340.81,323.69 L 341.75,324.68 L 344.05,324.22 L 346.47,326.14 L 344.84,327.01 L 345.27,330.08 L 348.70,330.83 L 348.69,334.14 L 350.66,335.12 L 350.51,336.80 L 348.27,337.61 L 347.32,336.87 L 346.31,339.02 L 348.92,340.07 L 348.80,341.88 L 348.80,341.90 L 349.17,344.88 L 352.01,344.77 L 349.38,350.71 L 354.28,350.85 L 354.99,353.44 L 356.26,355.58 L 355.45,357.34 L 358.19,358.49 L 355.34,359.85 L 354.50,360.74 L 355.48,362.56 L 357.74,363.13 L 360.37,363.42 L 364.05,360.34 L 366.11,364.25 L 369.08,363.23 L 370.00,364.99 L 368.71,366.23 L 369.06,369.03 L 370.84,368.82 L 371.65,371.00 L 369.92,372.54 L 370.65,375.69 L 374.18,373.81 L 376.39,375.11 L 366.63,378.76 L 366.33,378.86 L 349.02,384.87 L 345.19,381.77 L 342.63,375.87 L 341.63,372.96 L 341.89,370.16 L 340.70,368.39 L 326.34,356.91 L 326.34,356.86 L 326.73,338.54 L 325.49,330.59 L 327.83,320.22 L 328.11,316.86 L 328.55,315.54 L 329.16,310.38 L 327.37,293.02 L 330.95,296.76 L 332.48,298.35 L 333.80,303.43 L 332.58,309.06 Z"/>
+<path class="mun" data-name="Simão Dias" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 177.95,423.57 L 180.64,425.64 L 183.31,422.19 L 188.88,425.74 L 193.83,426.61 L 195.48,427.57 L 195.64,432.21 L 200.06,434.14 L 201.83,433.30 L 205.56,437.54 L 208.80,436.79 L 212.03,437.99 L 211.24,440.54 L 213.94,442.28 L 217.80,437.82 L 219.41,440.89 L 221.45,440.02 L 222.55,440.13 L 220.98,443.13 L 215.12,450.18 L 216.52,452.10 L 218.72,451.44 L 219.17,454.40 L 222.16,456.71 L 225.22,456.11 L 226.14,456.99 L 225.32,459.91 L 228.48,461.38 L 229.80,463.73 L 225.85,465.82 L 228.01,468.11 L 227.76,472.89 L 220.79,476.63 L 217.46,477.01 L 216.45,481.89 L 216.72,483.14 L 212.56,487.84 L 213.60,488.81 L 211.28,494.95 L 207.92,499.28 L 205.49,501.18 L 201.08,502.76 L 195.89,507.18 L 186.62,511.99 L 183.66,513.53 L 181.60,515.45 L 178.40,526.21 L 173.06,522.16 L 165.62,524.57 L 161.14,526.02 L 155.24,524.15 L 155.18,524.15 L 147.76,527.18 L 138.14,529.93 L 134.80,530.39 L 132.49,530.76 L 132.28,533.29 L 119.97,530.15 L 120.19,525.65 L 120.94,509.76 L 120.97,498.11 L 120.40,488.54 L 120.40,488.51 L 120.07,483.13 L 132.22,478.18 L 139.31,475.30 L 143.34,473.66 L 146.38,472.42 L 147.41,472.00 L 153.30,469.61 L 158.87,467.34 L 166.98,464.04 L 167.13,463.98 L 172.89,461.63 L 178.36,459.41 L 178.02,457.17 L 175.70,442.02 L 172.29,419.69 L 176.64,419.96 L 177.95,423.57 Z"/>
+<path class="mun" data-name="Siriri" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 439.15,398.79 L 437.98,399.67 L 447.55,398.29 L 451.67,399.05 L 452.07,399.13 L 450.19,410.80 L 451.50,415.49 L 449.78,417.07 L 448.89,421.49 L 452.29,422.29 L 452.98,424.78 L 452.63,428.55 L 450.30,431.31 L 449.53,437.12 L 449.37,437.50 L 449.02,437.69 L 446.46,439.08 L 443.24,440.82 L 442.70,439.81 L 440.99,441.93 L 435.16,443.10 L 428.09,444.52 L 425.05,442.03 L 423.71,439.01 L 424.68,434.81 L 418.98,435.77 L 422.07,433.18 L 412.00,434.91 L 401.21,428.23 L 405.85,422.51 L 412.76,417.80 L 414.08,414.78 L 412.04,412.65 L 411.89,412.49 L 410.93,411.49 L 418.41,401.02 L 418.42,401.00 L 419.83,398.87 L 426.04,390.65 L 426.62,377.03 L 432.05,379.07 L 435.14,381.61 L 435.60,385.28 L 439.56,392.01 L 439.15,398.79 Z"/>
+<path class="mun" data-name="Telha" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 532.96,262.03 L 533.45,267.07 L 533.51,268.51 L 533.70,270.89 L 532.95,271.59 L 532.45,270.78 L 530.00,267.13 L 528.50,270.63 L 526.12,278.09 L 525.94,286.47 L 518.46,285.93 L 514.30,285.62 L 503.42,284.46 L 498.13,286.22 L 512.82,266.18 L 521.21,255.41 L 526.07,260.07 L 532.96,262.03 Z"/>
+<path class="mun" data-name="Tobias Barreto" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 100.35,506.02 L 120.94,509.76 L 120.19,525.65 L 119.97,530.15 L 125.37,547.65 L 125.82,550.23 L 130.45,554.95 L 134.39,564.75 L 131.40,569.37 L 129.91,567.86 L 128.74,569.85 L 129.64,573.78 L 132.41,576.62 L 134.88,577.06 L 135.50,579.01 L 141.09,584.16 L 144.66,587.57 L 148.52,591.75 L 158.81,604.71 L 167.49,615.55 L 186.06,624.79 L 173.05,631.59 L 166.46,635.04 L 160.92,639.82 L 160.75,639.97 L 155.42,644.56 L 155.48,645.93 L 157.89,650.03 L 157.41,652.35 L 159.15,653.41 L 158.34,657.89 L 154.54,656.13 L 152.71,653.86 L 151.60,654.42 L 145.16,657.69 L 141.15,662.76 L 136.68,669.17 L 124.87,690.24 L 116.45,704.94 L 113.68,702.54 L 112.37,703.15 L 109.97,701.63 L 110.64,700.32 L 114.47,698.73 L 110.50,695.28 L 113.36,694.74 L 112.84,691.70 L 111.57,691.55 L 109.51,688.08 L 108.74,684.22 L 106.06,684.71 L 104.54,681.58 L 108.42,681.76 L 112.63,679.26 L 112.47,676.82 L 114.67,676.45 L 115.05,674.66 L 113.35,674.31 L 111.50,671.80 L 114.77,669.64 L 115.80,667.43 L 114.63,666.73 L 113.65,667.75 L 112.34,664.69 L 114.93,663.58 L 113.35,660.25 L 118.16,657.76 L 118.30,655.06 L 116.66,653.43 L 117.62,651.51 L 116.91,649.15 L 119.53,647.82 L 117.33,646.53 L 115.56,648.03 L 114.67,648.08 L 111.34,646.24 L 109.71,647.73 L 104.90,643.88 L 101.49,641.33 L 92.83,641.60 L 87.34,639.14 L 87.09,636.14 L 85.49,634.96 L 85.65,630.55 L 84.03,628.01 L 86.09,623.95 L 85.97,620.82 L 84.62,619.33 L 79.23,619.57 L 77.28,617.90 L 77.35,614.56 L 75.49,612.88 L 76.15,611.59 L 78.28,611.36 L 82.51,603.44 L 80.13,598.90 L 78.98,599.21 L 78.69,597.35 L 76.63,596.53 L 76.56,594.12 L 74.64,593.35 L 73.17,590.34 L 74.01,589.32 L 71.13,584.50 L 72.93,582.56 L 72.65,580.47 L 65.54,577.59 L 64.12,578.64 L 64.53,581.69 L 62.50,581.89 L 58.62,578.21 L 57.08,575.70 L 55.13,575.40 L 43.70,565.40 L 43.94,563.53 L 41.19,560.88 L 43.78,556.26 L 43.56,553.99 L 48.46,552.74 L 47.42,547.48 L 49.74,545.38 L 50.27,541.68 L 52.23,537.66 L 58.98,537.57 L 60.16,535.40 L 62.55,534.28 L 66.06,525.91 L 63.06,521.57 L 64.13,518.30 L 66.47,516.41 L 67.84,512.89 L 70.25,513.76 L 72.29,511.31 L 74.07,511.45 L 78.28,509.52 L 78.28,508.40 L 81.12,508.37 L 82.55,507.09 L 93.18,507.00 L 100.35,506.02 Z"/>
+<path class="mun" data-name="Tomar do Geru" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 136.68,669.17 L 140.12,674.04 L 143.93,673.66 L 146.22,676.58 L 154.55,682.83 L 156.18,681.34 L 157.30,681.30 L 160.11,686.93 L 163.00,687.16 L 164.14,686.13 L 165.64,687.50 L 166.63,688.91 L 169.50,691.82 L 170.09,692.48 L 172.81,694.82 L 175.25,694.16 L 177.75,696.17 L 177.78,696.20 L 177.76,698.87 L 186.52,704.90 L 186.64,709.42 L 188.20,709.19 L 188.68,711.38 L 188.86,714.36 L 191.60,716.41 L 194.19,715.94 L 194.73,720.62 L 197.60,722.15 L 196.74,725.86 L 198.33,726.96 L 201.37,726.43 L 201.30,724.60 L 202.85,728.78 L 180.78,728.90 L 179.40,732.60 L 171.33,755.33 L 168.74,754.81 L 165.70,750.42 L 160.30,749.49 L 160.09,745.02 L 160.29,743.98 L 163.85,743.71 L 164.18,741.61 L 165.69,740.74 L 164.81,739.33 L 158.59,740.17 L 157.73,737.67 L 153.71,736.78 L 156.22,734.87 L 159.20,735.01 L 158.53,734.11 L 152.94,733.60 L 149.69,737.90 L 149.05,736.90 L 146.63,738.14 L 145.91,734.79 L 144.03,734.28 L 145.30,732.89 L 144.37,731.84 L 144.86,728.16 L 144.05,727.35 L 141.47,727.34 L 140.50,725.42 L 136.09,725.02 L 136.33,728.00 L 133.79,729.38 L 133.27,732.73 L 131.31,732.98 L 130.18,732.89 L 131.01,731.25 L 129.88,729.26 L 126.21,727.11 L 127.95,725.96 L 127.44,722.76 L 125.44,722.99 L 124.34,724.95 L 122.65,725.33 L 122.82,721.73 L 121.81,720.76 L 118.12,721.89 L 116.96,718.82 L 121.50,717.51 L 121.13,714.19 L 119.96,714.50 L 117.81,711.51 L 116.45,704.94 L 124.87,690.24 L 136.68,669.17 Z"/>
+<path class="mun" data-name="Umbaúba" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 256.05,720.12 L 252.95,726.02 L 244.16,742.68 L 241.81,747.14 L 237.59,755.15 L 237.17,753.97 L 234.68,756.19 L 228.48,751.56 L 230.43,745.64 L 228.71,741.79 L 226.55,740.77 L 225.39,737.33 L 223.22,736.58 L 222.72,733.66 L 219.23,732.22 L 218.70,730.75 L 218.65,730.62 L 212.69,727.16 L 211.46,724.10 L 209.16,724.97 L 219.35,715.13 L 223.08,711.53 L 223.10,698.21 L 223.10,693.22 L 223.11,689.97 L 226.43,693.02 L 229.27,695.61 L 229.60,695.92 L 242.60,707.82 L 242.64,707.86 L 247.50,712.30 L 247.61,712.40 L 248.17,712.91 L 256.05,720.12 Z"/>
+          </g>
+          <g id="bordersG">
+<path d="M 500.31,369.99 L 498.29,367.46 L 494.47,366.93 L 491.36,366.68 L 490.62,365.05 L 489.27,360.01 L 486.74,357.48 L 483.31,351.90 L 484.30,348.94 L 482.18,345.09 L 485.45,340.78 L 483.83,339.51 L 482.99,340.20 L 478.37,333.53 L 477.18,332.95 L 477.31,324.01 L 474.96,323.26 L 470.67,325.42 L 470.48,325.37 L 467.75,324.74 L 466.68,323.10 L 464.69,324.11 L 463.02,323.58 L 457.99,328.56 L 454.35,324.16 L 449.07,328.01 L 448.39,330.57 L 445.96,331.01 L 444.26,335.07 L 440.81,335.76 L 441.47,336.64 L 439.69,339.32 L 437.05,339.40 L 436.25,340.73 L 433.60,338.96 L 431.46,341.55 L 428.85,344.78 L 433.88,346.49 L 433.82,350.83 L 437.86,350.82 L 435.82,351.19 L 436.80,352.61 L 433.93,354.44 L 433.71,354.20 L 432.64,352.83 L 430.13,354.87 L 428.69,353.13 L 424.27,358.28 L 422.84,356.86 L 421.30,357.54 L 421.67,356.17 L 419.46,354.91 L 417.72,354.84 L 415.08,357.37 L 412.93,356.30 L 410.87,356.64 L 407.58,353.21 L 401.32,351.49 L 400.20,349.03 L 399.75,348.02 L 399.59,347.88 L 395.13,343.78 L 394.52,343.29 L 393.45,342.02 L 393.44,341.82 L 391.87,337.02 L 389.27,335.43 L 389.30,328.80 L 385.79,320.21 L 390.84,315.45 L 390.84,313.97 L 390.12,313.64 L 387.74,312.56 L 383.80,315.23 L 379.94,314.64 L 376.69,315.72 L 377.10,316.67 L 378.01,318.78 L 374.52,317.70 L 372.09,318.55 L 371.70,320.52 L 368.98,320.79 L 368.09,322.91 L 366.14,323.86 L 366.64,325.77 L 363.89,331.15 L 360.54,332.61 L 361.06,335.34 L 357.54,337.97 L 357.45,341.32 L 354.42,342.87 L 351.10,342.64 L 350.45,343.43 L 352.01,344.77 L 349.17,344.88 L 348.80,341.90 L 348.80,341.88 L 348.92,340.07 L 346.31,339.02 L 347.32,336.87 L 348.27,337.61 L 350.51,336.80 L 350.66,335.12 L 348.69,334.14 L 348.70,330.83 L 345.27,330.08 L 344.84,327.01 L 346.47,326.14 L 344.05,324.22 L 341.75,324.68 L 340.81,323.69 L 340.09,324.66 L 338.42,319.78 L 336.74,319.20 L 334.87,320.75 L 333.47,319.92 L 335.74,316.66 L 334.97,315.22 L 335.21,310.86 L 334.20,311.17 L 332.58,309.06 L 333.80,303.43 L 332.48,298.35 L 330.95,296.76 L 333.63,290.22 L 336.06,282.77 L 344.64,281.52 L 353.77,280.20 L 355.28,279.99 L 361.95,258.66 L 350.44,259.60 L 355.50,249.26 L 349.22,244.26 L 336.80,234.02 L 336.77,233.99 L 326.46,225.44 L 323.03,224.46 L 326.90,220.68 L 329.93,220.89 L 330.29,218.24 L 332.32,219.63 L 333.29,216.44 L 336.44,215.40 L 335.90,212.70 L 338.98,210.94 L 337.62,209.20 L 340.25,209.19 L 340.31,207.65 L 337.87,205.07 L 342.47,204.01 L 343.59,205.08 L 343.20,207.12 L 345.12,206.28 L 347.29,207.06 L 349.32,202.68 L 347.08,202.94 L 346.99,201.25 L 347.98,198.97 L 349.16,201.20 L 351.20,200.96 L 351.00,198.43 L 352.66,196.27 L 355.01,198.86 L 354.49,202.77 L 356.74,205.00 L 355.15,207.11 L 357.84,206.05 L 361.16,204.19 L 362.35,201.17 L 364.13,201.14 L 366.28,202.19 L 369.11,207.15 L 372.10,204.88 L 371.32,198.92 L 372.64,196.97 L 379.65,198.89 L 377.09,188.36 L 378.72,186.82 L 381.36,188.31 L 382.84,185.78 L 391.39,185.27 L 392.39,168.59 L 394.11,163.64 L 405.61,163.11 L 421.16,164.16 L 428.62,169.00 L 447.71,186.74 L 449.77,188.76 L 453.38,192.13 L 454.37,192.94 L 454.64,193.16 L 461.11,196.98 L 466.36,196.08 L 475.32,192.32 L 479.23,192.00 L 489.25,198.54 L 492.38,205.36 L 492.61,206.04 L 492.82,206.63 L 492.83,206.66 L 492.95,207.00 L 493.36,210.03 L 493.36,210.06 L 492.37,220.08 L 494.28,227.97 L 494.88,229.15 L 495.41,230.18 L 496.78,233.54 L 502.85,240.72 L 506.16,249.15 L 507.28,250.58 L 507.31,250.62 L 510.08,252.74 L 518.63,254.64 L 521.21,255.41 L 526.07,260.07 L 532.96,262.03 L 533.45,267.07 L 533.51,268.51 L 533.70,270.89 L 534.04,271.97 L 537.72,277.46 L 543.59,281.67 L 543.87,281.85 L 547.72,283.73 L 559.31,285.62 L 566.91,287.79 L 568.91,289.93 L 566.92,293.25 L 571.18,295.42 L 574.11,295.39 L 580.06,300.20 L 586.82,302.45 L 593.02,304.05 L 594.28,303.38 L 595.12,302.02 L 603.00,300.34 L 607.95,295.56 L 612.31,295.95 L 612.90,296.11 L 614.95,297.00 L 616.22,298.05 L 619.79,302.46 L 624.44,306.52 L 625.93,307.36 L 627.52,308.58 L 628.34,313.98 L 633.78,318.99 L 636.80,324.31 L 636.81,324.33 L 635.85,336.68 L 637.37,343.24 L 638.39,345.32 L 638.25,352.31 L 636.92,355.10 L 637.86,358.02 L 644.61,361.88 L 646.84,359.02 L 657.14,358.66 L 653.92,359.89 L 652.85,363.03 L 657.33,362.92 L 664.83,359.63 L 665.64,359.22 L 665.65,359.22 L 674.41,353.18 L 676.86,353.41 L 681.73,357.39 L 683.82,357.55 L 686.56,360.12 L 691.36,370.85 L 695.82,381.19 L 695.87,381.39 L 700.00,388.15 L 700.00,389.54 L 697.79,392.43 L 697.77,395.47 L 695.45,394.64 L 684.66,395.94 L 661.87,402.40 L 624.18,417.92 L 616.77,421.44 L 597.23,436.14 L 594.74,435.02 L 592.70,434.10 L 586.93,431.50 L 584.84,430.56 L 569.14,423.49 L 567.25,423.21 L 563.49,418.26 L 556.82,416.39 L 536.08,432.65 L 531.37,436.33 L 516.46,448.02 L 514.38,449.13 L 512.86,448.65 L 511.80,449.43 L 510.24,450.57 L 505.43,454.11 L 503.09,451.61 L 501.55,445.77 L 491.61,444.19 L 488.18,439.54 L 488.78,436.95 L 484.34,437.09 L 480.31,437.21 L 473.26,440.67 L 480.06,421.39 L 486.06,404.37 L 486.14,402.56 L 486.11,402.42 L 485.51,399.31 L 493.38,396.89 L 497.44,382.46 L 501.09,369.51 L 500.31,369.99 Z" fill="none" stroke="#f5f2e8" stroke-opacity="0.92" stroke-width="2.2" stroke-linejoin="round" class="region-border" data-region="sertaneja"/>
+<path d="M 409.96,609.85 L 402.12,606.95 L 396.82,603.43 L 394.80,599.29 L 393.90,590.02 L 384.19,587.87 L 372.66,585.08 L 372.48,583.61 L 368.80,581.36 L 367.46,578.79 L 365.85,574.18 L 365.84,574.15 L 365.08,572.48 L 364.80,569.73 L 356.54,566.56 L 357.98,564.21 L 354.87,561.55 L 354.06,557.25 L 352.93,554.77 L 355.50,552.15 L 356.46,545.61 L 360.40,513.02 L 360.51,512.15 L 360.40,512.13 L 360.66,511.94 L 373.17,502.53 L 377.01,499.64 L 387.13,492.03 L 376.96,482.31 L 377.49,480.53 L 373.56,477.17 L 373.59,473.73 L 374.42,472.57 L 373.38,470.80 L 369.51,471.28 L 367.40,474.05 L 361.19,477.95 L 360.19,477.03 L 361.65,475.47 L 362.79,475.06 L 361.60,474.57 L 360.55,474.41 L 355.19,472.69 L 353.81,470.90 L 355.78,469.58 L 357.69,464.72 L 359.24,458.05 L 356.53,445.44 L 356.52,445.41 L 355.27,440.19 L 356.80,436.04 L 359.29,432.73 L 361.48,431.06 L 365.85,427.75 L 368.47,425.77 L 369.63,423.34 L 371.80,423.14 L 374.00,420.64 L 379.74,420.48 L 385.03,423.66 L 385.86,423.54 L 390.42,426.99 L 392.49,426.96 L 393.18,428.67 L 396.96,429.75 L 397.19,431.69 L 399.68,432.25 L 402.03,434.69 L 402.84,430.85 L 401.21,428.23 L 405.85,422.51 L 412.76,417.80 L 414.08,414.78 L 412.04,412.65 L 411.89,412.49 L 410.93,411.49 L 418.41,401.02 L 418.42,401.00 L 419.83,398.87 L 426.04,390.65 L 426.62,377.03 L 432.05,379.07 L 435.14,381.61 L 435.60,385.28 L 439.56,392.01 L 439.15,398.79 L 437.98,399.67 L 447.55,398.29 L 451.67,399.05 L 452.07,399.13 L 450.19,410.80 L 451.50,415.49 L 449.78,417.07 L 448.89,421.49 L 452.29,422.29 L 452.98,424.78 L 452.63,428.55 L 450.30,431.31 L 464.05,434.95 L 473.26,440.67 L 480.31,437.21 L 484.34,437.09 L 488.78,436.95 L 488.18,439.54 L 491.61,444.19 L 501.55,445.77 L 503.09,451.61 L 505.43,454.11 L 510.24,450.57 L 511.80,449.43 L 512.86,448.65 L 514.38,449.13 L 516.46,448.02 L 531.37,436.33 L 536.08,432.65 L 556.82,416.39 L 563.49,418.26 L 567.25,423.21 L 569.14,423.49 L 584.84,430.56 L 586.93,431.50 L 592.70,434.10 L 594.74,435.02 L 597.23,436.14 L 586.14,441.13 L 575.09,446.18 L 547.77,464.47 L 534.59,475.94 L 530.95,479.04 L 509.29,502.28 L 501.96,510.14 L 500.75,511.47 L 493.19,520.87 L 480.43,537.53 L 472.82,547.79 L 469.98,552.43 L 469.29,553.56 L 467.56,556.72 L 467.72,561.43 L 456.75,574.14 L 429.27,614.19 L 420.62,631.64 L 419.51,633.82 L 417.33,631.82 L 415.93,629.69 L 417.76,624.67 L 417.81,618.79 L 416.17,614.17 L 409.96,609.85 Z" fill="none" stroke="#f5f2e8" stroke-opacity="0.92" stroke-width="2.2" stroke-linejoin="round" class="region-border" data-region="metro"/>
+<path d="M 243.33,768.37 L 240.83,770.71 L 237.96,768.50 L 237.18,772.59 L 235.84,774.08 L 233.11,774.08 L 234.23,777.90 L 230.29,783.87 L 231.18,785.58 L 229.94,787.31 L 225.84,784.83 L 224.56,786.40 L 220.07,784.96 L 221.76,780.13 L 221.50,778.49 L 219.17,776.74 L 215.71,781.35 L 213.09,780.37 L 209.94,781.37 L 208.81,775.68 L 202.39,776.02 L 198.32,770.99 L 196.95,770.88 L 196.99,772.31 L 194.25,773.41 L 192.67,770.80 L 186.74,770.53 L 185.29,768.61 L 183.19,769.31 L 178.96,767.66 L 176.30,762.29 L 176.68,761.41 L 178.63,762.16 L 180.18,760.52 L 177.51,758.67 L 174.34,758.56 L 171.33,755.33 L 168.74,754.81 L 165.70,750.42 L 160.30,749.49 L 160.09,745.02 L 160.29,743.98 L 163.85,743.71 L 164.18,741.61 L 165.69,740.74 L 164.81,739.33 L 158.59,740.17 L 157.73,737.67 L 153.71,736.78 L 156.22,734.87 L 159.20,735.01 L 158.53,734.11 L 152.94,733.60 L 149.69,737.90 L 149.05,736.90 L 146.63,738.14 L 145.91,734.79 L 144.03,734.28 L 145.30,732.89 L 144.37,731.84 L 144.86,728.16 L 144.05,727.35 L 141.47,727.34 L 140.50,725.42 L 136.09,725.02 L 136.33,728.00 L 133.79,729.38 L 133.27,732.73 L 131.31,732.98 L 130.18,732.89 L 131.01,731.25 L 129.88,729.26 L 126.21,727.11 L 127.95,725.96 L 127.44,722.76 L 125.44,722.99 L 124.34,724.95 L 122.65,725.33 L 122.82,721.73 L 121.81,720.76 L 118.12,721.89 L 116.96,718.82 L 121.50,717.51 L 121.13,714.19 L 119.96,714.50 L 117.81,711.51 L 116.45,704.94 L 113.68,702.54 L 112.37,703.15 L 109.97,701.63 L 110.64,700.32 L 114.47,698.73 L 110.50,695.28 L 113.36,694.74 L 112.84,691.70 L 111.57,691.55 L 109.51,688.08 L 108.74,684.22 L 106.06,684.71 L 104.54,681.58 L 108.42,681.76 L 112.63,679.26 L 112.47,676.82 L 114.67,676.45 L 115.05,674.66 L 113.35,674.31 L 111.50,671.80 L 114.77,669.64 L 115.80,667.43 L 114.63,666.73 L 113.65,667.75 L 112.34,664.69 L 114.93,663.58 L 113.35,660.25 L 118.16,657.76 L 118.30,655.06 L 116.66,653.43 L 117.62,651.51 L 116.91,649.15 L 119.53,647.82 L 117.33,646.53 L 115.56,648.03 L 114.67,648.08 L 111.34,646.24 L 109.71,647.73 L 104.90,643.88 L 101.49,641.33 L 92.83,641.60 L 87.34,639.14 L 87.09,636.14 L 85.49,634.96 L 85.65,630.55 L 84.03,628.01 L 86.09,623.95 L 85.97,620.82 L 84.62,619.33 L 79.23,619.57 L 77.28,617.90 L 77.35,614.56 L 75.49,612.88 L 76.15,611.59 L 78.28,611.36 L 82.51,603.44 L 80.13,598.90 L 78.98,599.21 L 78.69,597.35 L 76.63,596.53 L 76.56,594.12 L 74.64,593.35 L 73.17,590.34 L 74.01,589.32 L 71.13,584.50 L 72.93,582.56 L 72.65,580.47 L 65.54,577.59 L 64.12,578.64 L 64.53,581.69 L 62.50,581.89 L 58.62,578.21 L 57.08,575.70 L 55.13,575.40 L 43.70,565.40 L 43.94,563.53 L 41.19,560.88 L 43.78,556.26 L 43.56,553.99 L 36.17,551.82 L 35.52,550.68 L 36.86,547.71 L 34.51,545.69 L 32.46,549.15 L 30.99,546.27 L 26.87,543.67 L 25.48,535.33 L 23.15,530.62 L 22.67,522.35 L 24.72,515.03 L 22.01,509.97 L 20.78,510.56 L 20.00,508.70 L 23.71,504.64 L 23.08,503.10 L 23.19,498.71 L 24.40,497.55 L 29.77,493.59 L 32.75,483.91 L 32.74,483.89 L 30.15,477.03 L 29.89,476.29 L 30.88,472.11 L 32.58,469.19 L 36.92,466.86 L 41.58,465.55 L 45.60,465.09 L 47.43,467.36 L 52.44,467.43 L 56.71,469.44 L 64.87,469.61 L 68.71,467.70 L 73.01,467.55 L 85.17,468.60 L 91.92,464.97 L 92.72,460.32 L 94.55,463.05 L 95.07,463.82 L 97.50,467.43 L 102.14,474.31 L 105.38,475.92 L 113.38,484.02 L 115.45,484.83 L 119.39,483.38 L 120.07,483.13 L 132.22,478.18 L 139.31,475.30 L 143.34,473.66 L 146.38,472.42 L 147.41,472.00 L 153.30,469.61 L 158.87,467.34 L 166.98,464.04 L 167.13,463.98 L 172.89,461.63 L 178.36,459.41 L 178.02,457.17 L 175.70,442.02 L 172.29,419.69 L 176.64,419.96 L 177.95,423.57 L 180.64,425.64 L 183.31,422.19 L 188.88,425.74 L 193.83,426.61 L 195.48,427.57 L 195.64,432.21 L 200.06,434.14 L 201.83,433.30 L 205.56,437.54 L 208.80,436.79 L 212.03,437.99 L 211.24,440.54 L 213.94,442.28 L 217.80,437.82 L 219.41,440.89 L 221.45,440.02 L 222.55,440.13 L 220.98,443.13 L 215.12,450.18 L 216.52,452.10 L 218.72,451.44 L 219.17,454.40 L 222.16,456.71 L 225.22,456.11 L 226.14,456.99 L 225.32,459.91 L 228.48,461.38 L 229.80,463.73 L 225.85,465.82 L 228.01,468.11 L 231.57,465.72 L 233.36,469.06 L 233.89,467.51 L 232.51,465.61 L 234.03,463.85 L 233.28,459.51 L 233.50,455.84 L 231.63,453.30 L 234.04,445.87 L 236.28,443.24 L 238.52,431.99 L 241.81,427.09 L 245.87,427.83 L 252.37,429.03 L 272.16,432.66 L 282.49,442.50 L 291.44,433.05 L 293.92,428.78 L 297.53,422.54 L 303.13,412.88 L 303.78,414.45 L 307.63,423.74 L 314.88,420.12 L 322.10,416.53 L 325.86,417.38 L 332.27,418.84 L 333.08,419.93 L 333.44,421.36 L 334.89,423.93 L 334.05,426.10 L 334.73,431.73 L 334.72,431.90 L 334.04,435.10 L 335.13,436.46 L 337.47,436.72 L 337.83,434.18 L 339.64,436.95 L 341.44,437.41 L 342.18,439.60 L 342.99,442.03 L 345.16,442.22 L 344.41,444.37 L 345.30,445.85 L 349.93,447.10 L 356.53,445.44 L 359.24,458.05 L 357.69,464.72 L 355.78,469.58 L 353.81,470.90 L 355.19,472.69 L 360.55,474.41 L 361.60,474.57 L 362.79,475.06 L 361.65,475.47 L 360.19,477.03 L 361.19,477.95 L 367.40,474.05 L 369.51,471.28 L 373.38,470.80 L 374.42,472.57 L 373.59,473.73 L 373.56,477.17 L 377.49,480.53 L 376.96,482.31 L 387.13,492.03 L 377.01,499.64 L 373.17,502.53 L 360.66,511.94 L 360.40,512.13 L 360.51,512.15 L 360.40,513.02 L 356.46,545.61 L 355.50,552.15 L 352.93,554.77 L 354.06,557.25 L 354.87,561.55 L 357.98,564.21 L 356.54,566.56 L 364.80,569.73 L 365.08,572.48 L 365.84,574.15 L 365.85,574.18 L 367.46,578.79 L 368.80,581.36 L 372.48,583.61 L 372.66,585.08 L 384.19,587.87 L 393.90,590.02 L 394.80,599.29 L 396.82,603.43 L 402.12,606.95 L 409.96,609.85 L 416.17,614.17 L 417.81,618.79 L 417.76,624.67 L 415.93,629.69 L 417.33,631.82 L 419.51,633.82 L 421.57,635.63 L 404.72,654.38 L 402.08,657.27 L 381.39,682.77 L 374.14,694.41 L 369.67,703.76 L 360.07,734.37 L 357.72,736.20 L 356.14,741.15 L 352.03,740.12 L 347.78,740.15 L 340.24,744.71 L 333.16,753.78 L 329.28,757.34 L 326.04,759.84 L 311.98,769.28 L 307.02,770.44 L 292.36,770.80 L 290.12,773.02 L 287.77,775.06 L 286.37,779.91 L 274.26,779.42 L 272.18,780.66 L 270.80,777.81 L 268.39,776.56 L 266.59,777.58 L 267.03,779.88 L 264.71,781.09 L 262.21,777.48 L 264.61,774.51 L 263.76,773.29 L 260.85,772.18 L 255.73,776.72 L 253.79,775.24 L 250.84,775.89 L 246.60,772.76 L 245.22,768.68 L 243.33,768.37 Z" fill="none" stroke="#f5f2e8" stroke-opacity="0.92" stroke-width="2.2" stroke-linejoin="round" class="region-border" data-region="sul"/>
+<path d="M 234.04,445.87 L 231.63,453.30 L 233.50,455.84 L 233.28,459.51 L 234.03,463.85 L 232.51,465.61 L 233.89,467.51 L 233.36,469.06 L 231.57,465.72 L 228.01,468.11 L 225.85,465.82 L 229.80,463.73 L 228.48,461.38 L 225.32,459.91 L 226.14,456.99 L 225.22,456.11 L 222.16,456.71 L 219.17,454.40 L 218.72,451.44 L 216.52,452.10 L 215.12,450.18 L 220.98,443.13 L 222.55,440.13 L 221.45,440.02 L 219.41,440.89 L 217.80,437.82 L 213.94,442.28 L 211.24,440.54 L 212.03,437.99 L 208.80,436.79 L 205.56,437.54 L 201.83,433.30 L 200.06,434.14 L 195.64,432.21 L 195.48,427.57 L 193.83,426.61 L 188.88,425.74 L 183.31,422.19 L 180.64,425.64 L 177.95,423.57 L 176.64,419.96 L 172.29,419.69 L 172.28,419.67 L 173.97,418.05 L 171.90,417.53 L 172.22,415.31 L 170.50,414.60 L 171.32,410.67 L 168.91,408.98 L 168.58,406.54 L 171.80,407.20 L 173.21,405.82 L 172.68,403.44 L 174.74,402.42 L 176.31,402.76 L 175.29,399.60 L 177.73,394.52 L 177.22,392.91 L 178.69,391.19 L 177.12,389.50 L 175.74,382.29 L 165.35,366.76 L 161.85,361.95 L 164.68,356.67 L 163.93,353.08 L 169.78,351.04 L 167.86,350.10 L 168.56,346.89 L 171.14,345.18 L 169.16,342.89 L 170.96,343.23 L 172.20,341.31 L 174.63,342.44 L 175.38,340.32 L 178.69,338.03 L 180.65,338.20 L 188.03,333.65 L 188.74,331.50 L 192.08,329.83 L 197.24,329.90 L 204.21,327.40 L 207.40,325.55 L 205.03,320.00 L 204.96,319.78 L 196.08,274.52 L 190.77,271.40 L 189.75,268.70 L 192.89,255.31 L 191.87,251.20 L 190.39,249.09 L 184.11,241.94 L 179.90,232.18 L 175.78,222.61 L 174.70,214.58 L 174.69,214.11 L 174.92,207.06 L 171.28,200.59 L 165.26,198.63 L 155.76,193.27 L 153.58,194.00 L 141.05,192.18 L 138.61,191.20 L 136.70,188.35 L 133.27,188.51 L 128.55,190.54 L 125.64,190.47 L 121.65,187.30 L 114.45,172.00 L 110.87,170.08 L 110.83,167.88 L 113.02,164.82 L 115.26,160.05 L 116.43,152.18 L 118.57,149.09 L 119.96,144.46 L 118.61,142.21 L 119.34,137.70 L 122.35,133.91 L 122.26,132.47 L 119.79,131.88 L 110.85,127.73 L 103.71,121.78 L 102.62,118.24 L 99.65,117.54 L 98.42,115.65 L 99.05,113.59 L 97.67,111.58 L 95.65,102.00 L 95.41,101.58 L 94.09,93.68 L 94.65,85.89 L 95.36,84.10 L 100.84,82.72 L 101.87,76.71 L 107.44,71.08 L 111.09,70.58 L 112.58,72.98 L 113.55,72.66 L 113.50,70.58 L 114.47,69.46 L 113.65,67.32 L 107.04,65.36 L 106.80,63.62 L 104.17,62.73 L 103.14,60.55 L 97.05,56.47 L 95.13,52.71 L 95.66,45.57 L 96.48,44.69 L 94.92,42.85 L 95.22,41.45 L 98.36,39.81 L 98.99,42.21 L 100.17,42.36 L 102.61,37.49 L 103.38,33.96 L 101.55,32.72 L 101.98,29.70 L 104.91,27.45 L 105.18,24.98 L 108.80,20.00 L 113.93,24.61 L 126.07,27.12 L 140.45,32.68 L 148.90,29.15 L 151.83,33.13 L 167.97,44.06 L 169.69,45.50 L 171.32,49.84 L 174.75,48.50 L 176.78,49.09 L 180.88,55.52 L 186.01,59.45 L 188.00,64.09 L 188.96,66.18 L 191.31,66.22 L 202.99,61.37 L 206.60,61.83 L 215.89,63.44 L 225.03,68.41 L 227.26,69.70 L 230.92,72.91 L 232.53,76.42 L 234.79,80.62 L 236.07,83.00 L 240.39,86.01 L 255.56,95.92 L 256.24,96.29 L 263.67,101.85 L 267.27,103.58 L 274.02,104.30 L 283.54,105.60 L 284.78,105.89 L 303.34,106.61 L 305.85,107.62 L 311.94,109.04 L 323.89,112.64 L 327.15,114.72 L 331.29,118.08 L 340.34,120.56 L 344.07,121.58 L 349.40,123.91 L 352.43,126.68 L 359.39,134.12 L 362.86,135.63 L 368.18,136.79 L 372.50,138.04 L 380.30,145.32 L 382.97,148.99 L 386.54,158.10 L 390.82,162.36 L 394.11,163.64 L 392.39,168.59 L 391.39,185.27 L 382.84,185.78 L 381.36,188.31 L 378.72,186.82 L 377.09,188.36 L 379.65,198.89 L 372.64,196.97 L 371.32,198.92 L 372.10,204.88 L 369.11,207.15 L 366.28,202.19 L 364.13,201.14 L 362.35,201.17 L 361.16,204.19 L 357.84,206.05 L 355.15,207.11 L 356.74,205.00 L 354.49,202.77 L 355.01,198.86 L 352.66,196.27 L 351.00,198.43 L 351.20,200.96 L 349.16,201.20 L 347.98,198.97 L 346.99,201.25 L 347.08,202.94 L 349.32,202.68 L 347.29,207.06 L 345.12,206.28 L 343.20,207.12 L 343.59,205.08 L 342.47,204.01 L 337.87,205.07 L 340.31,207.65 L 340.25,209.19 L 337.62,209.20 L 338.98,210.94 L 335.90,212.70 L 336.44,215.40 L 333.29,216.44 L 332.32,219.63 L 330.29,218.24 L 329.93,220.89 L 326.90,220.68 L 323.03,224.46 L 326.46,225.44 L 336.77,233.99 L 336.80,234.02 L 349.22,244.26 L 355.50,249.26 L 350.44,259.60 L 361.95,258.66 L 355.28,279.99 L 353.77,280.20 L 344.64,281.52 L 336.06,282.77 L 333.63,290.22 L 330.95,296.76 L 332.48,298.35 L 333.80,303.43 L 332.58,309.06 L 334.20,311.17 L 335.21,310.86 L 334.97,315.22 L 335.74,316.66 L 333.47,319.92 L 334.87,320.75 L 336.74,319.20 L 338.42,319.78 L 340.09,324.66 L 340.81,323.69 L 341.75,324.68 L 344.05,324.22 L 346.47,326.14 L 344.84,327.01 L 345.27,330.08 L 348.70,330.83 L 348.69,334.14 L 350.66,335.12 L 350.51,336.80 L 348.27,337.61 L 347.32,336.87 L 346.31,339.02 L 348.92,340.07 L 348.80,341.88 L 348.80,341.90 L 349.17,344.88 L 352.01,344.77 L 350.45,343.43 L 351.10,342.64 L 354.42,342.87 L 357.45,341.32 L 357.54,337.97 L 361.06,335.34 L 360.54,332.61 L 363.89,331.15 L 366.64,325.77 L 366.14,323.86 L 368.09,322.91 L 368.98,320.79 L 371.70,320.52 L 372.09,318.55 L 374.52,317.70 L 378.01,318.78 L 377.10,316.67 L 376.69,315.72 L 379.94,314.64 L 383.80,315.23 L 387.74,312.56 L 390.12,313.64 L 390.84,313.97 L 390.84,315.45 L 385.79,320.21 L 389.30,328.80 L 389.27,335.43 L 391.87,337.02 L 393.44,341.82 L 393.45,342.02 L 394.52,343.29 L 395.13,343.78 L 399.59,347.88 L 399.75,348.02 L 400.20,349.03 L 401.32,351.49 L 407.58,353.21 L 410.87,356.64 L 412.93,356.30 L 415.08,357.37 L 417.72,354.84 L 419.46,354.91 L 421.67,356.17 L 421.30,357.54 L 422.84,356.86 L 424.27,358.28 L 428.69,353.13 L 430.13,354.87 L 432.64,352.83 L 433.71,354.20 L 433.93,354.44 L 435.25,355.43 L 436.54,356.21 L 436.11,360.01 L 435.76,363.10 L 433.73,366.16 L 427.55,370.09 L 426.66,376.51 L 426.62,377.03 L 426.04,390.65 L 419.83,398.87 L 418.42,401.00 L 418.41,401.02 L 410.93,411.49 L 411.89,412.49 L 412.04,412.65 L 414.08,414.78 L 412.76,417.80 L 405.85,422.51 L 401.21,428.23 L 402.84,430.85 L 402.03,434.69 L 399.68,432.25 L 397.19,431.69 L 396.96,429.75 L 393.18,428.67 L 392.49,426.96 L 390.42,426.99 L 385.86,423.54 L 385.03,423.66 L 379.74,420.48 L 374.00,420.64 L 371.80,423.14 L 369.63,423.34 L 368.47,425.77 L 365.85,427.75 L 361.48,431.06 L 359.29,432.73 L 356.80,436.04 L 355.27,440.19 L 356.52,445.41 L 356.53,445.44 L 349.93,447.10 L 345.30,445.85 L 344.41,444.37 L 345.16,442.22 L 342.99,442.03 L 342.18,439.60 L 341.44,437.41 L 339.64,436.95 L 337.83,434.18 L 337.47,436.72 L 335.13,436.46 L 334.04,435.10 L 334.72,431.90 L 334.73,431.73 L 334.05,426.10 L 334.89,423.93 L 333.44,421.36 L 333.08,419.93 L 332.27,418.84 L 325.86,417.38 L 322.10,416.53 L 314.88,420.12 L 307.63,423.74 L 303.78,414.45 L 303.13,412.88 L 297.53,422.54 L 293.92,428.78 L 291.44,433.05 L 282.49,442.50 L 272.16,432.66 L 252.37,429.03 L 245.87,427.83 L 241.81,427.09 L 238.52,431.99 L 236.28,443.24 L 234.04,445.87 Z" fill="none" stroke="#f5f2e8" stroke-opacity="0.92" stroke-width="2.2" stroke-linejoin="round" class="region-border" data-region="norte"/>
+<path d="M 466.68,323.10 L 467.75,324.74 L 470.48,325.37 L 470.67,325.42 L 474.96,323.26 L 477.31,324.01 L 477.18,332.95 L 478.37,333.53 L 482.99,340.20 L 483.83,339.51 L 485.45,340.78 L 482.18,345.09 L 484.30,348.94 L 483.31,351.90 L 486.74,357.48 L 489.27,360.01 L 490.62,365.05 L 491.36,366.68 L 494.47,366.93 L 498.29,367.46 L 500.31,369.99 L 501.09,369.51 L 497.44,382.46 L 493.38,396.89 L 485.51,399.31 L 486.11,402.42 L 486.14,402.56 L 486.06,404.37 L 480.06,421.39 L 473.26,440.67 L 464.05,434.95 L 450.30,431.31 L 452.63,428.55 L 452.98,424.78 L 452.29,422.29 L 448.89,421.49 L 449.78,417.07 L 451.50,415.49 L 450.19,410.80 L 452.07,399.13 L 451.67,399.05 L 447.55,398.29 L 437.98,399.67 L 439.15,398.79 L 439.56,392.01 L 435.60,385.28 L 435.14,381.61 L 432.05,379.07 L 426.62,377.03 L 426.66,376.51 L 427.55,370.09 L 433.73,366.16 L 435.76,363.10 L 436.11,360.01 L 436.54,356.21 L 435.25,355.43 L 433.93,354.44 L 436.80,352.61 L 435.82,351.19 L 437.86,350.82 L 433.82,350.83 L 433.88,346.49 L 428.85,344.78 L 431.46,341.55 L 433.60,338.96 L 436.25,340.73 L 437.05,339.40 L 439.69,339.32 L 441.47,336.64 L 440.81,335.76 L 444.26,335.07 L 445.96,331.01 L 448.39,330.57 L 449.07,328.01 L 454.35,324.16 L 457.99,328.56 L 463.02,323.58 L 464.69,324.11 L 466.68,323.10 Z" fill="none" stroke="#f5f2e8" stroke-opacity="0.92" stroke-width="2.2" stroke-linejoin="round" class="region-border" data-region="sem"/>
+          </g>
+          <g id="labelsG">
+<g class="mun-tag" data-region="sertaneja"><circle cx="506.85" cy="255.86" r="1.3" class="mun-dot"/><text x="508.95" y="254.16" class="mun-label">Amparo de São Francisco</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="444.51" cy="311.72" r="1.3" class="mun-dot"/><text x="446.61" y="310.02" class="mun-label">Aquidabã</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="438.61" cy="567.35" r="1.3" class="mun-dot"/><text x="440.71" y="565.65" class="mun-label">Aracaju</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="266.22" cy="666.77" r="1.3" class="mun-dot"/><text x="268.32" y="665.07" class="mun-label">Arauá</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="355.71" cy="491.88" r="1.3" class="mun-dot"/><text x="357.81" y="490.18" class="mun-label">Areia Branca</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="488.67" cy="515.29" r="1.3" class="mun-dot"/><text x="490.77" y="513.59" class="mun-label">Barra dos Coqueiros</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="253.19" cy="623.77" r="1.3" class="mun-dot"/><text x="255.29" y="622.07" class="mun-label">Boquim</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="675.97" cy="377.02" r="1.3" class="mun-dot"/><text x="678.07" y="375.32" class="mun-label">Brejo Grande</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="291.79" cy="490.35" r="1.3" class="mun-dot"/><text x="293.89" y="488.65" class="mun-label">Campo do Brito</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="477.72" cy="255.18" r="1.3" class="mun-dot"/><text x="479.82" y="253.48" class="mun-label">Canhoba</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="136.25" cy="94.55" r="1.3" class="mun-dot"/><text x="138.35" y="92.85" class="mun-label">Canindé de São Francisco</text></g>
+<g class="mun-tag" data-region="sem"><circle cx="458.52" cy="365.67" r="1.3" class="mun-dot"/><text x="460.62" y="363.97" class="mun-label">Capela</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="207.78" cy="331.48" r="1.3" class="mun-dot"/><text x="209.88" y="329.78" class="mun-label">Carira</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="498.07" cy="452.76" r="1.3" class="mun-dot"/><text x="500.17" y="451.06" class="mun-label">Carmópolis</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="517.53" cy="301.83" r="1.3" class="mun-dot"/><text x="519.63" y="300.13" class="mun-label">Cedro de São João</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="214.52" cy="760.16" r="1.3" class="mun-dot"/><text x="216.62" y="758.46" class="mun-label">Cristinápolis</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="410.20" cy="331.78" r="1.3" class="mun-dot"/><text x="412.30" y="330.08" class="mun-label">Cumbe</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="415.70" cy="455.61" r="1.3" class="mun-dot"/><text x="417.80" y="453.91" class="mun-label">Divina Pastora</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="322.67" cy="663.01" r="1.3" class="mun-dot"/><text x="324.77" y="661.31" class="mun-label">Estância</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="355.74" cy="319.76" r="1.3" class="mun-dot"/><text x="357.84" y="318.06" class="mun-label">Feira Nova</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="265.96" cy="400.66" r="1.3" class="mun-dot"/><text x="268.06" y="398.96" class="mun-label">Frei Paulo</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="394.94" cy="220.31" r="1.3" class="mun-dot"/><text x="397.04" y="218.61" class="mun-label">Gararu</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="487.56" cy="460.80" r="1.3" class="mun-dot"/><text x="489.66" y="459.10" class="mun-label">General Maynard</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="402.99" cy="287.13" r="1.3" class="mun-dot"/><text x="405.09" y="285.43" class="mun-label">Gracho Cardoso</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="639.77" cy="368.43" r="1.3" class="mun-dot"/><text x="641.87" y="366.73" class="mun-label">Ilha das Flores</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="281.98" cy="751.88" r="1.3" class="mun-dot"/><text x="284.08" y="750.18" class="mun-label">Indiaroba</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="322.39" cy="457.53" r="1.3" class="mun-dot"/><text x="324.49" y="455.83" class="mun-label">Itabaiana</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="188.99" cy="672.62" r="1.3" class="mun-dot"/><text x="191.09" y="670.92" class="mun-label">Itabaianinha</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="412.13" cy="236.98" r="1.3" class="mun-dot"/><text x="414.23" y="235.28" class="mun-label">Itabi</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="352.77" cy="589.61" r="1.3" class="mun-dot"/><text x="354.87" y="587.91" class="mun-label">Itaporanga d'Ajuda</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="513.13" cy="398.09" r="1.3" class="mun-dot"/><text x="515.23" y="396.39" class="mun-label">Japaratuba</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="547.74" cy="353.50" r="1.3" class="mun-dot"/><text x="549.84" y="351.80" class="mun-label">Japoatã</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="236.31" cy="535.15" r="1.3" class="mun-dot"/><text x="238.41" y="533.45" class="mun-label">Lagarto</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="416.03" cy="501.91" r="1.3" class="mun-dot"/><text x="418.13" y="500.21" class="mun-label">Laranjeiras</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="258.03" cy="455.63" r="1.3" class="mun-dot"/><text x="260.13" y="453.93" class="mun-label">Macambira</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="501.50" cy="326.71" r="1.3" class="mun-dot"/><text x="503.60" y="325.01" class="mun-label">Malhada dos Bois</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="373.50" cy="456.35" r="1.3" class="mun-dot"/><text x="375.60" y="454.65" class="mun-label">Malhador</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="436.33" cy="474.98" r="1.3" class="mun-dot"/><text x="438.43" y="473.28" class="mun-label">Maruim</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="353.91" cy="424.23" r="1.3" class="mun-dot"/><text x="356.01" y="422.53" class="mun-label">Moita Bonita</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="257.58" cy="228.74" r="1.3" class="mun-dot"/><text x="259.68" y="227.04" class="mun-label">Monte Alegre de Sergipe</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="490.57" cy="345.19" r="1.3" class="mun-dot"/><text x="492.67" y="343.49" class="mun-label">Muribeca</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="598.64" cy="333.93" r="1.3" class="mun-dot"/><text x="600.74" y="332.23" class="mun-label">Neópolis</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="294.72" cy="316.58" r="1.3" class="mun-dot"/><text x="296.82" y="314.88" class="mun-label">Nossa Senhora Aparecida</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="281.06" cy="272.17" r="1.3" class="mun-dot"/><text x="283.16" y="270.47" class="mun-label">Nossa Senhora da Glória</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="386.30" cy="367.26" r="1.3" class="mun-dot"/><text x="388.40" y="365.56" class="mun-label">Nossa Senhora das Dores</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="469.55" cy="234.11" r="1.3" class="mun-dot"/><text x="471.65" y="232.41" class="mun-label">Nossa Senhora de Lourdes</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="417.75" cy="524.48" r="1.3" class="mun-dot"/><text x="419.85" y="522.78" class="mun-label">Nossa Senhora do Socorro</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="610.60" cy="392.08" r="1.3" class="mun-dot"/><text x="612.70" y="390.38" class="mun-label">Pacatuba</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="226.15" cy="444.27" r="1.3" class="mun-dot"/><text x="228.25" y="442.57" class="mun-label">Pedra Mole</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="236.34" cy="651.06" r="1.3" class="mun-dot"/><text x="238.44" y="649.36" class="mun-label">Pedrinhas</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="192.80" cy="416.75" r="1.3" class="mun-dot"/><text x="194.90" y="415.05" class="mun-label">Pinhão</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="538.20" cy="453.53" r="1.3" class="mun-dot"/><text x="540.30" y="451.83" class="mun-label">Pirambu</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="208.53" cy="157.12" r="1.3" class="mun-dot"/><text x="210.63" y="155.42" class="mun-label">Poço Redondo</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="61.31" cy="503.03" r="1.3" class="mun-dot"/><text x="63.41" y="501.33" class="mun-label">Poço Verde</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="321.82" cy="186.18" r="1.3" class="mun-dot"/><text x="323.92" y="184.48" class="mun-label">Porto da Folha</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="552.37" cy="293.61" r="1.3" class="mun-dot"/><text x="554.47" y="291.91" class="mun-label">Propriá</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="186.49" cy="582.88" r="1.3" class="mun-dot"/><text x="188.59" y="581.18" class="mun-label">Riachão do Dantas</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="395.40" cy="469.85" r="1.3" class="mun-dot"/><text x="397.50" y="468.15" class="mun-label">Riachuelo</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="327.09" cy="394.01" r="1.3" class="mun-dot"/><text x="329.19" y="392.31" class="mun-label">Ribeirópolis</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="463.47" cy="457.05" r="1.3" class="mun-dot"/><text x="465.57" y="455.35" class="mun-label">Rosário do Catete</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="302.26" cy="600.71" r="1.3" class="mun-dot"/><text x="304.36" y="599.01" class="mun-label">Salgado</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="286.34" cy="713.28" r="1.3" class="mun-dot"/><text x="288.44" y="711.58" class="mun-label">Santa Luzia do Itanhy</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="614.70" cy="305.00" r="1.3" class="mun-dot"/><text x="616.80" y="303.30" class="mun-label">Santana do São Francisco</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="391.30" cy="436.92" r="1.3" class="mun-dot"/><text x="393.40" y="435.22" class="mun-label">Santa Rosa de Lima</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="490.46" cy="490.80" r="1.3" class="mun-dot"/><text x="492.56" y="489.10" class="mun-label">Santo Amaro das Brotas</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="393.37" cy="558.34" r="1.3" class="mun-dot"/><text x="395.47" y="556.64" class="mun-label">São Cristóvão</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="268.87" cy="491.96" r="1.3" class="mun-dot"/><text x="270.97" y="490.26" class="mun-label">São Domingos</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="528.62" cy="322.90" r="1.3" class="mun-dot"/><text x="530.72" y="321.20" class="mun-label">São Francisco</text></g>
+<g class="mun-tag" data-region="norte"><circle cx="347.64" cy="343.14" r="1.3" class="mun-dot"/><text x="349.74" y="341.44" class="mun-label">São Miguel do Aleixo</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="184.43" cy="472.53" r="1.3" class="mun-dot"/><text x="186.53" y="470.83" class="mun-label">Simão Dias</text></g>
+<g class="mun-tag" data-region="metro"><circle cx="433.50" cy="417.18" r="1.3" class="mun-dot"/><text x="435.60" y="415.48" class="mun-label">Siriri</text></g>
+<g class="mun-tag" data-region="sertaneja"><circle cx="524.27" cy="272.17" r="1.3" class="mun-dot"/><text x="526.37" y="270.47" class="mun-label">Telha</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="102.64" cy="609.95" r="1.3" class="mun-dot"/><text x="104.74" y="608.25" class="mun-label">Tobias Barreto</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="155.06" cy="718.48" r="1.3" class="mun-dot"/><text x="157.16" y="716.78" class="mun-label">Tomar do Geru</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="231.22" cy="724.25" r="1.3" class="mun-dot"/><text x="233.32" y="722.55" class="mun-label">Umbaúba</text></g>
+          </g>
+        </g>
+      </svg>
+
+      <svg class="compass" width="34" height="34" viewBox="0 0 34 34">
+        <circle cx="17" cy="17" r="15.5" fill="rgba(15,32,39,0.7)" stroke="rgba(255,255,255,0.25)"/>
+        <path d="M17 4 L21 17 L17 30 L13 17 Z" fill="#e7e4d8"/>
+        <path d="M17 4 L19 17 L17 17 Z" fill="#e6394b"/>
+        <text x="17" y="12" text-anchor="middle" font-size="7" fill="#0f2027" font-family="sans-serif" font-weight="700">N</text>
+      </svg>
+      <div class="scalebar"><i id="scaleBarLine"></i><span id="scaleBarLabel">20 km</span></div>
+
+      <div class="map-controls">
+        <button id="zoomIn" title="Aumentar" aria-label="Aumentar zoom">+</button>
+        <button id="zoomOut" title="Diminuir" aria-label="Diminuir zoom">&minus;</button>
+        <button id="zoomReset" title="Centralizar" aria-label="Centralizar mapa">&#10021;</button>
+      </div>
+      <div class="map-legend" id="mapLegend"></div>
+    </div>
+
+  </div>
+
+  <footer>Divisão por regional reproduzida a partir do mapa de referência fornecido pelo usuário. Malha municipal: IBGE (via geodata-br).</footer>
+
+<script>
+(function(){
+  const REGION_NAMES = {"norte": "Regional Norte", "sertaneja": "Regional Sertaneja", "metro": "Regional Metropolitana", "sul": "Regional Sul", "sem": "Sem operação"};
+  const REGION_COLORS = {"norte": "#5b8dbe", "sertaneja": "#5c9468", "metro": "#d2933f", "sul": "#8ca05a", "sem": "#9aa39d"};
+  const REGION_ORDER = ["norte", "sertaneja", "metro", "sul", "sem"];
+  const COUNTS = {"norte": 14, "sertaneja": 22, "metro": 16, "sul": 22, "sem": 1};
+  const CENTROIDS = {"Amparo de São Francisco": [506.8482316343512, 255.8616206240113, "sertaneja"], "Aquidabã": [444.5111897965572, 311.72487649639334, "sertaneja"], "Aracaju": [438.6062407807222, 567.3474408226299, "metro"], "Arauá": [266.219465429642, 666.7711290107164, "sul"], "Areia Branca": [355.7078055154091, 491.8783329371182, "sul"], "Barra dos Coqueiros": [488.6676666289978, 515.292117956745, "metro"], "Boquim": [253.18572152392127, 623.7656795561279, "sul"], "Brejo Grande": [675.9716357481128, 377.0203831254265, "sertaneja"], "Campo do Brito": [291.787989242295, 490.3466832590847, "sul"], "Canhoba": [477.7165883714921, 255.1771258175451, "sertaneja"], "Canindé de São Francisco": [136.24732738704728, 94.55178018215923, "norte"], "Capela": [458.5174774868012, 365.66842713385165, "sem"], "Carira": [207.77824695667667, 331.4843171310483, "norte"], "Carmópolis": [498.07198081844865, 452.7639451741903, "metro"], "Cedro de São João": [517.5290580341812, 301.82506653443335, "sertaneja"], "Cristinápolis": [214.52433706654193, 760.1568560110888, "sul"], "Cumbe": [410.1998851899159, 331.7754995678696, "sertaneja"], "Divina Pastora": [415.70372230043364, 455.60951375720555, "metro"], "Estância": [322.66868861823446, 663.0133138037106, "sul"], "Feira Nova": [355.73885628391884, 319.757171946228, "sertaneja"], "Frei Paulo": [265.9623084152089, 400.66266061155164, "norte"], "Gararu": [394.9390499220105, 220.31149563352525, "sertaneja"], "General Maynard": [487.55860885104903, 460.79955942903, "metro"], "Gracho Cardoso": [402.9918444944262, 287.12690236741514, "sertaneja"], "Ilha das Flores": [639.7736665691904, 368.42888277847396, "sertaneja"], "Indiaroba": [281.983504332587, 751.8792675432638, "sul"], "Itabaiana": [322.3910918137758, 457.52713015054275, "sul"], "Itabaianinha": [188.9855593567117, 672.6248097039659, "sul"], "Itabi": [412.1293389406058, 236.98386406860047, "sertaneja"], "Itaporanga d'Ajuda": [352.77278651706473, 589.6132053810003, "sul"], "Japaratuba": [513.1300182885306, 398.0869156361959, "sertaneja"], "Japoatã": [547.7403662623801, 353.50148657157683, "sertaneja"], "Lagarto": [236.30641728526842, 535.1544527036176, "sul"], "Laranjeiras": [416.0305296238092, 501.9137802860979, "metro"], "Macambira": [258.0346813662591, 455.629954674615, "sul"], "Malhada dos Bois": [501.4954047956372, 326.7058647106644, "sertaneja"], "Malhador": [373.4983358580163, 456.35401226796034, "metro"], "Maruim": [436.3253632919897, 474.9835243251678, "metro"], "Moita Bonita": [353.90706340351426, 424.22521487170957, "norte"], "Monte Alegre de Sergipe": [257.5811411395303, 228.7386152187285, "norte"], "Muribeca": [490.57384628641364, 345.19039806096214, "sertaneja"], "Neópolis": [598.6388002214813, 333.93050810467156, "sertaneja"], "Nossa Senhora Aparecida": [294.71898780900904, 316.5767068862023, "norte"], "Nossa Senhora da Glória": [281.05992618287394, 272.16961767779924, "norte"], "Nossa Senhora das Dores": [386.29627919626415, 367.2611569985201, "norte"], "Nossa Senhora de Lourdes": [469.54561413123844, 234.11025177710934, "sertaneja"], "Nossa Senhora do Socorro": [417.7476943484869, 524.475143135464, "metro"], "Pacatuba": [610.6006938600717, 392.082376573004, "sertaneja"], "Pedra Mole": [226.15048156610231, 444.2686011212228, "norte"], "Pedrinhas": [236.3365428320905, 651.057150195653, "sul"], "Pinhão": [192.8034887169641, 416.7464595360431, "norte"], "Pirambu": [538.196001463183, 453.53017761632896, "metro"], "Poço Redondo": [208.53237464836846, 157.11513233054336, "norte"], "Poço Verde": [61.30923921443195, 503.03272945438783, "sul"], "Porto da Folha": [321.8228716014992, 186.18497512905003, "norte"], "Propriá": [552.3731030731864, 293.60614284031146, "sertaneja"], "Riachão do Dantas": [186.48619286461704, 582.8788738362452, "sul"], "Riachuelo": [395.4015251904512, 469.8499913286787, "metro"], "Ribeirópolis": [327.08632804911764, 394.00948685744083, "norte"], "Rosário do Catete": [463.4749096365455, 457.04791642178054, "metro"], "Salgado": [302.25575777987007, 600.7101485646242, "sul"], "Santa Luzia do Itanhy": [286.34013947129284, 713.2835325248977, "sul"], "Santana do São Francisco": [614.7024651169626, 304.9970201312561, "sertaneja"], "Santa Rosa de Lima": [391.29747084329824, 436.9181168133434, "metro"], "Santo Amaro das Brotas": [490.46450022113095, 490.79967176514873, "metro"], "São Cristóvão": [393.37132976057694, 558.3442753079303, "metro"], "São Domingos": [268.86684449372876, 491.95794469416774, "sul"], "São Francisco": [528.618693333886, 322.8971545960072, "sertaneja"], "São Miguel do Aleixo": [347.63866512044774, 343.14286611561045, "norte"], "Simão Dias": [184.43222302602024, 472.5267664928623, "sul"], "Siriri": [433.50249740959237, 417.18270962970513, "metro"], "Telha": [524.2741989941196, 272.1727400590886, "sertaneja"], "Tobias Barreto": [102.63535763452052, 609.9486203629087, "sul"], "Tomar do Geru": [155.05719383795662, 718.4782069738501, "sul"], "Umbaúba": [231.21763606726006, 724.2488520739618, "sul"]};
+  const W = 720.00, H = 807.31;
+  const KM_PER_UNIT = 0.2979316397107234; // real-world km represented by 1 svg content unit
+  const NICE_KM_STEPS = [1,2,5,10,20,50,100,200,500];
+
+  const svg = document.getElementById('mapSvg');
+  const zoomG = document.getElementById('zoomG');
+  const mapArea = document.getElementById('mapArea');
+  const chipsWrap = document.getElementById('chips');
+  const mapLegend = document.getElementById('mapLegend');
+  const searchInput = document.getElementById('searchInput');
+  const indexList = document.getElementById('indexList');
+  const idxRows = Array.from(indexList.querySelectorAll('.idx-row'));
+  const idxGroups = Array.from(indexList.querySelectorAll('.idx-group'));
+  const idxCount = document.getElementById('idxCount');
+  const idxFilterLabel = document.getElementById('idxFilterLabel');
+  const emptyNote = document.getElementById('emptyNote');
+  const selStrip = document.getElementById('selStrip');
+  const selDot = document.getElementById('selDot');
+  const selName = document.getElementById('selName');
+  const selRegion = document.getElementById('selRegion');
+  const selClear = document.getElementById('selClear');
+  const clearAll = document.getElementById('clearAll');
+  const scaleBarLine = document.getElementById('scaleBarLine');
+  const scaleBarLabel = document.getElementById('scaleBarLabel');
+
+  let scale = 1, tx = 0, ty = 0;
+  let activeFilter = null;
+  let selectedName = null;
+  let searchQuery = '';
+
+  // scale bar: recomputed from the real screen size + current zoom, so the
+  // distance it shows is always correct (not a fixed decorative value).
+  function updateScaleBar(){
+    const rectW = mapArea.clientWidth;
+    if(!rectW) return;
+    const kmPerScreenPx = (KM_PER_UNIT * W) / (scale * rectW);
+    let chosenKm = NICE_KM_STEPS[NICE_KM_STEPS.length - 1];
+    for(const step of NICE_KM_STEPS){
+      if((step / kmPerScreenPx) >= 55){ chosenKm = step; break; }
+    }
+    const barPx = clamp(chosenKm / kmPerScreenPx, 14, 140);
+    scaleBarLine.style.width = barPx.toFixed(1) + 'px';
+    scaleBarLabel.textContent = chosenKm + ' km';
+  }
+  window.addEventListener('resize', updateScaleBar);
+
+  function applyTransformCore(animated){
+    zoomG.classList.toggle('notransition', !animated);
+    zoomG.setAttribute('transform', `translate(${tx},${ty}) scale(${scale})`);
+    updateScaleBar();
+  }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function screenToSVG(evt){
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+  function zoomAt(P, factor){
+    const newScale = clamp(scale * factor, 1, 14);
+    const cx = (P.x - tx) / scale, cy = (P.y - ty) / scale;
+    tx = P.x - cx * newScale; ty = P.y - cy * newScale;
+    scale = newScale;
+    applyTransformCore(true);
+  }
+  function zoomToPoint(cx, cy, targetScale){
+    scale = clamp(targetScale, 1, 14);
+    tx = W/2 - cx*scale; ty = H/2 - cy*scale;
+    applyTransformCore(true);
+  }
+  function resetView(){ scale=1; tx=0; ty=0; applyTransformCore(true); }
+
+  document.getElementById('zoomIn').addEventListener('click', () => zoomAt({x:W/2,y:H/2}, 1.35));
+  document.getElementById('zoomOut').addEventListener('click', () => zoomAt({x:W/2,y:H/2}, 1/1.35));
+  document.getElementById('zoomReset').addEventListener('click', resetView);
+
+  mapArea.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    zoomAt(screenToSVG(e), e.deltaY < 0 ? 1.15 : 1/1.15);
+  }, {passive:false});
+
+  let dragging=false, dStart=null, dTx=0, dTy=0;
+  function pDown(e){ dragging=true; svg.classList.add('dragging'); dStart=screenToSVG(e); dTx=tx; dTy=ty; }
+  function pMove(e){ if(!dragging) return; const P=screenToSVG(e); tx=dTx+(P.x-dStart.x); ty=dTy+(P.y-dStart.y); applyTransformCore(false); }
+  function pUp(){ dragging=false; svg.classList.remove('dragging'); }
+  svg.addEventListener('mousedown', pDown);
+  window.addEventListener('mousemove', pMove);
+  window.addEventListener('mouseup', pUp);
+  svg.addEventListener('dblclick', (e) => { e.preventDefault(); resetView(); });
+
+  // touch: one finger pans, two fingers pinch-zoom (tracks the midpoint so the
+  // spot between your fingers stays put, the way maps normally behave).
+  let touchMode = null;
+  let panStart=null, panTx=0, panTy=0;
+  let pinchDist=0, pinchScale=1, pinchMid=null, pinchTx=0, pinchTy=0;
+  function touchDist(t0,t1){ return Math.hypot(t0.clientX-t1.clientX, t0.clientY-t1.clientY); }
+  function beginPan(t){ touchMode='pan'; panStart=screenToSVG(t); panTx=tx; panTy=ty; }
+  function beginPinch(t0,t1){
+    touchMode='pinch';
+    pinchDist = touchDist(t0,t1);
+    pinchScale = scale;
+    const p0=screenToSVG(t0), p1=screenToSVG(t1);
+    pinchMid = {x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2};
+    pinchTx = tx; pinchTy = ty;
+  }
+  svg.addEventListener('touchstart', (e) => {
+    if(e.touches.length === 1) beginPan(e.touches[0]);
+    else if(e.touches.length >= 2) beginPinch(e.touches[0], e.touches[1]);
+  }, {passive:true});
+  svg.addEventListener('touchmove', (e) => {
+    if(touchMode === 'pan' && e.touches.length === 1){
+      const P = screenToSVG(e.touches[0]);
+      tx = panTx + (P.x - panStart.x); ty = panTy + (P.y - panStart.y);
+      applyTransformCore(false);
+    } else if(touchMode === 'pinch' && e.touches.length >= 2){
+      const factor = touchDist(e.touches[0], e.touches[1]) / (pinchDist || 1);
+      const newScale = clamp(pinchScale * factor, 1, 14);
+      const cx = (pinchMid.x - pinchTx) / pinchScale, cy = (pinchMid.y - pinchTy) / pinchScale;
+      tx = pinchMid.x - cx * newScale; ty = pinchMid.y - cy * newScale;
+      scale = newScale;
+      applyTransformCore(false);
+    }
+  }, {passive:true});
+  function touchEnd(e){
+    if(e.touches.length === 0){ touchMode=null; }
+    else if(e.touches.length === 1){ beginPan(e.touches[0]); }
+    else if(e.touches.length >= 2){ beginPinch(e.touches[0], e.touches[1]); }
+  }
+  window.addEventListener('touchend', touchEnd);
+  window.addEventListener('touchcancel', touchEnd);
+
+  const munPaths = Array.from(document.querySelectorAll('path.mun'));
+  const tagEls = Array.from(document.querySelectorAll('.mun-tag'));
+  const borderEls = Array.from(document.querySelectorAll('.region-border'));
+
+  const tagByName = {};
+  tagEls.forEach(g => { const t = g.querySelector('text'); if(t) tagByName[t.textContent] = g; });
+
+  // only one name is ever shown on the map at a time, to avoid two labels
+  // overlapping when cities sit close together. Hover takes priority; the
+  // selected city's name returns as soon as the mouse leaves.
+  function showLabel(name){
+    const g = tagByName[name];
+    if(g){ g.classList.add('show'); zoomG.appendChild(g); }
+  }
+  function hideLabel(name){
+    const g = tagByName[name]; if(g) g.classList.remove('show');
+  }
+
+  munPaths.forEach(p => {
+    const name = p.getAttribute('data-name');
+    p.addEventListener('mouseenter', () => {
+      p.classList.add('hovered');
+      if(selectedName && selectedName !== name) hideLabel(selectedName);
+      showLabel(name);
+    });
+    p.addEventListener('mouseleave', () => {
+      p.classList.remove('hovered');
+      hideLabel(name);
+      if(selectedName && selectedName !== name) showLabel(selectedName);
+    });
+    p.addEventListener('click', () => selectMunicipality(name, true));
+  });
+
+  function updateClearAllVisibility(){
+    clearAll.hidden = !(activeFilter || selectedName || searchQuery.trim());
+  }
+
+  function clearSelection(){
+    if(selectedName){ const g = tagByName[selectedName]; if(g) g.classList.remove('show'); }
+    selectedName = null;
+    munPaths.forEach(p => p.classList.remove('selected'));
+    idxRows.forEach(r => r.classList.remove('selected'));
+    selStrip.classList.remove('show');
+    updateClearAllVisibility();
+    if(location.hash) history.replaceState(null, '', location.pathname + location.search);
+  }
+
+  function selectMunicipality(name, doZoom, updateHash){
+    const data = CENTROIDS[name];
+    if(!data) return;
+    if(selectedName && selectedName !== name){ const g = tagByName[selectedName]; if(g) g.classList.remove('show'); }
+    selectedName = name;
+    munPaths.forEach(p => p.classList.toggle('selected', p.getAttribute('data-name') === name));
+    const el = munPaths.find(p => p.getAttribute('data-name') === name);
+    if(el) zoomG.appendChild(el);
+    showLabel(name);
+    const tagEl = tagByName[name];
+    if(tagEl) zoomG.appendChild(tagEl);
+
+    idxRows.forEach(r => r.classList.toggle('selected', r.getAttribute('data-name') === name));
+    const activeRow = indexList.querySelector('.idx-row.selected');
+    if(activeRow) activeRow.scrollIntoView({block:'nearest'});
+
+    const region = data[2];
+    selDot.style.background = REGION_COLORS[region];
+    selName.textContent = name;
+    selRegion.textContent = REGION_NAMES[region];
+    selStrip.classList.add('show');
+    updateClearAllVisibility();
+
+    if(doZoom) zoomToPoint(data[0], data[1], 3);
+    if(updateHash !== false) history.replaceState(null, '', '#' + encodeURIComponent(name));
+  }
+  selClear.addEventListener('click', () => { clearSelection(); resetView(); });
+
+  idxRows.forEach(row => {
+    row.addEventListener('click', () => selectMunicipality(row.getAttribute('data-name'), true));
+    row.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectMunicipality(row.getAttribute('data-name'), true); }
+    });
+  });
+
+  const allChip = document.createElement('div');
+  allChip.className = 'chip active';
+  allChip.tabIndex = 0;
+  allChip.setAttribute('role','button');
+  allChip.textContent = 'Todas';
+  allChip.addEventListener('click', () => { activeFilter = null; refresh(); });
+  allChip.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); activeFilter = null; refresh(); } });
+  chipsWrap.appendChild(allChip);
+
+  REGION_ORDER.forEach(region => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.dataset.region = region;
+    chip.tabIndex = 0;
+    chip.setAttribute('role','button');
+    chip.innerHTML = `<span class="dot" style="background:${REGION_COLORS[region]}"></span>${REGION_NAMES[region].replace('Regional ','')} <span class="n">${COUNTS[region]}</span>`;
+    chip.addEventListener('click', () => toggleFilter(region));
+    chip.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleFilter(region); } });
+    chipsWrap.appendChild(chip);
+
+    const leg = document.createElement('div');
+    leg.innerHTML = `<span class="sw" style="background:${REGION_COLORS[region]}"></span>${REGION_NAMES[region]}`;
+    mapLegend.appendChild(leg);
+  });
+
+  function toggleFilter(region){ activeFilter = (activeFilter === region) ? null : region; refresh(); }
+
+  const distBar = document.getElementById('distBar');
+  const totalMun = Object.values(COUNTS).reduce((a,b) => a+b, 0);
+  REGION_ORDER.forEach(region => {
+    const seg = document.createElement('span');
+    seg.style.width = (COUNTS[region] / totalMun * 100) + '%';
+    seg.style.background = REGION_COLORS[region];
+    seg.title = `${REGION_NAMES[region]}: ${COUNTS[region]} municípios`;
+    distBar.appendChild(seg);
+  });
+
+  function refresh(){
+    document.querySelectorAll('.chip').forEach(c => {
+      const r = c.dataset.region;
+      c.classList.toggle('active', r ? r === activeFilter : !activeFilter);
+    });
+    munPaths.forEach(p => p.classList.toggle('dim', !!activeFilter && p.getAttribute('data-region') !== activeFilter));
+    borderEls.forEach(b => b.classList.toggle('dim', !!activeFilter && b.getAttribute('data-region') !== activeFilter));
+    tagEls.forEach(t => t.classList.toggle('dim', !!activeFilter && t.getAttribute('data-region') !== activeFilter));
+
+    const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const q = norm(searchQuery.trim());
+    let visible = 0;
+    idxGroups.forEach(group => {
+      const region = group.getAttribute('data-group');
+      const groupMatchesFilter = !activeFilter || region === activeFilter;
+      let groupVisible = 0;
+      group.querySelectorAll('.idx-row').forEach(row => {
+        const name = row.getAttribute('data-name');
+        const matchesSearch = !q || norm(name).includes(q);
+        const show = groupMatchesFilter && matchesSearch;
+        row.hidden = !show;
+        if(show){ groupVisible++; visible++; }
+      });
+      group.hidden = groupVisible === 0;
+    });
+    idxCount.textContent = visible;
+    idxFilterLabel.textContent = activeFilter ? REGION_NAMES[activeFilter] : '';
+    emptyNote.classList.toggle('show', visible === 0);
+    updateClearAllVisibility();
+  }
+
+  searchInput.addEventListener('input', () => { searchQuery = searchInput.value; refresh(); });
+  searchInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      const firstVisible = idxRows.find(r => !r.hidden);
+      if(firstVisible) selectMunicipality(firstVisible.getAttribute('data-name'), true);
+    }
+  });
+
+  clearAll.addEventListener('click', () => {
+    activeFilter = null; searchQuery = ''; searchInput.value = '';
+    clearSelection(); refresh(); resetView();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if(e.key === '/' && document.activeElement !== searchInput){
+      e.preventDefault(); searchInput.focus();
+    } else if(e.key === 'Escape'){
+      if(document.activeElement === searchInput) searchInput.blur();
+      clearAll.click();
+    }
+  });
+
+  applyTransformCore(false);
+  refresh();
+
+  // deep link: opening the page with #NomeDoMunicipio jumps straight to it
+  // (and selecting a city updates the address bar so the link can be shared).
+  const initialName = decodeURIComponent(location.hash.replace(/^#/, ''));
+  if(initialName && CENTROIDS[initialName]){
+    selectMunicipality(initialName, true, false);
+  }
+})();
+</script>
+</body>
+</html>
