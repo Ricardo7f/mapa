@@ -73,17 +73,35 @@
   .chip.active{ border-color:var(--ink); color:var(--ink); font-weight:600; background:#fff; }
 
   .selection-strip{
-    display:flex; align-items:center; gap:10px; padding:0 18px; height:0; overflow:hidden; opacity:0;
+    display:block; padding:0 18px; max-height:0; overflow:hidden; opacity:0;
     background:#eae5d4; border-bottom:1px solid var(--line-strong); flex:none;
-    transition:height .18s ease, opacity .18s ease, padding .18s ease;
+    transition:max-height .2s ease, opacity .18s ease, padding .18s ease;
   }
-  .selection-strip.show{ height:52px; opacity:1; padding:11px 18px; }
-  .selection-strip .sd{ width:11px; height:11px; border-radius:50%; flex:none; box-shadow:0 0 0 3px rgba(230,57,75,0.18); background:#e6394b; }
+  .selection-strip.show{ max-height:240px; opacity:1; padding:11px 18px 14px; }
+  .sel-top{ display:flex; align-items:center; gap:10px; }
+  .selection-strip .sd{ width:15px; height:15px; border-radius:50%; flex:none; background:#e6394b; box-shadow:0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,0.28); }
   .selection-strip .st{ font-size:13px; line-height:1.3; flex:1; min-width:0; }
   .selection-strip .st b{ display:block; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .selection-strip .st span{ color:var(--ink-soft); font-size:11.5px; }
-  .selection-strip button{ all:unset; cursor:pointer; color:var(--ink-soft); font-size:16px; line-height:1; padding:2px 6px; flex:none; }
-  .selection-strip button:hover{ color:var(--ink); }
+  .selection-strip #selClear{ all:unset; cursor:pointer; color:var(--ink-soft); font-size:16px; line-height:1; padding:2px 6px; flex:none; }
+  .selection-strip #selClear:hover{ color:var(--ink); }
+
+  .color-panel{ margin-top:10px; padding-top:10px; border-top:1px solid var(--line-strong); }
+  .color-title{ font-size:11px; letter-spacing:0.04em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:8px; }
+  .swatches{ display:flex; flex-wrap:wrap; gap:6px; }
+  .swatch{
+    all:unset; display:block; box-sizing:border-box; width:22px; height:22px; border-radius:50%; cursor:pointer;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,0.2); transition:transform .1s ease;
+  }
+  .swatch:hover{ transform:scale(1.14); }
+  .swatch.active{ box-shadow:0 0 0 2px #eae5d4, 0 0 0 4px var(--ink); }
+  .swatch:focus-visible{ outline:2px solid var(--focus); outline-offset:3px; }
+  .color-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
+  .custom-color{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-soft); cursor:pointer; }
+  .custom-color input{ width:30px; height:22px; padding:0; border:1px solid var(--line-strong); border-radius:5px; background:none; cursor:pointer; }
+  .link-btn{ all:unset; cursor:pointer; font-size:11.5px; color:var(--ink-soft); text-decoration:underline; text-underline-offset:2px; }
+  .link-btn:hover{ color:var(--ink); }
+  .link-btn[hidden]{ display:none; }
 
   .index-head{
     display:flex; justify-content:space-between; align-items:baseline; padding:12px 18px 6px;
@@ -132,7 +150,7 @@
   path.mun{ transition:opacity .15s ease, filter .15s ease, fill .12s ease; cursor:pointer; }
   path.mun.dim{ opacity:.14; }
   path.mun.hovered{ filter:brightness(1.18); }
-  path.mun.selected{ fill:#e6394b !important; stroke:#7a0f1c !important; stroke-width:1.6px !important; filter:drop-shadow(0 0 5px rgba(230,57,75,0.85)); }
+  path.mun.selected{ stroke:#e6394b !important; stroke-width:2px !important; filter:drop-shadow(0 0 5px rgba(230,57,75,0.85)); }
   .region-border.dim{ opacity:.12; }
 
   .mun-tag{ opacity:0; transition:opacity .15s ease; pointer-events:none; }
@@ -168,6 +186,51 @@
   .scalebar i{ display:block; height:3px; background:#e7e4d8; transition:width .15s ease; }
 
   footer{ flex:none; padding:8px 22px; font-size:10.5px; color:#6b7268; background:#0f2027; border-top:1px solid rgba(255,255,255,0.06); }
+
+  .export-btn{
+    display:flex; align-items:center; gap:7px; padding:7px 13px; border-radius:7px;
+    border:1px solid rgba(232,178,61,0.45); background:rgba(232,178,61,0.1); color:#f0d38b;
+    font-size:12.5px; font-family:inherit; cursor:pointer; white-space:nowrap;
+  }
+  .export-btn:hover{ background:rgba(232,178,61,0.2); }
+  .export-btn svg{ width:14px; height:14px; flex:none; }
+  @media (max-width:640px){ .export-btn .lbl{ display:none; } }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(10,16,12,0.55); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:18px;
+  }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-panel{
+    width:100%; max-width:460px; background:var(--panel-2); border-radius:12px; padding:22px 24px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.35); color:var(--ink);
+  }
+  .modal-panel h2{ margin:0 0 6px; font-family:Georgia,serif; font-size:19px; }
+  .modal-sub{ margin:0 0 16px; font-size:12.5px; color:var(--ink-soft); line-height:1.5; }
+  .modal-field{ display:flex; flex-direction:column; gap:9px; margin-bottom:12px; }
+  .modal-field label{ display:flex; align-items:center; gap:9px; font-size:13.5px; cursor:pointer; }
+  .modal-select{
+    width:100%; padding:8px 10px; border-radius:7px; border:1px solid var(--line-strong);
+    background:#fff; color:var(--ink); font-size:13px; font-family:inherit;
+  }
+  .modal-select:disabled{ opacity:.5; }
+  #exportRegionSelect{ margin-bottom:14px; }
+  .opt-checks{ display:flex; flex-direction:column; gap:9px; margin:0 0 14px; padding-top:14px; border-top:1px solid var(--line); }
+  .opt-checks label{ display:flex; align-items:center; gap:9px; font-size:13.5px; cursor:pointer; }
+  .opt-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+  .opt-grid label{ display:flex; flex-direction:column; gap:5px; font-size:11.5px; color:var(--ink-soft); }
+  @media (max-width:420px){ .opt-grid{ grid-template-columns:1fr; } }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; }
+  .btn-secondary, .btn-primary{
+    padding:8px 16px; border-radius:7px; font-size:13px; font-family:inherit; cursor:pointer; border:1px solid transparent;
+  }
+  .btn-secondary{ background:transparent; border-color:var(--line-strong); color:var(--ink-soft); }
+  .btn-secondary:hover{ background:var(--panel); }
+  .btn-primary{ background:#20241f; color:#f5f2e8; }
+  .btn-primary:hover{ background:#33392f; }
+  .btn-primary:disabled{ opacity:.6; cursor:default; }
+  .modal-status{ margin:12px 0 0; font-size:12px; color:var(--ink-soft); text-align:right; }
+  .modal-status.error{ color:#a8323f; }
 </style>
 </head>
 <body>
@@ -178,6 +241,10 @@
       <div><h1>Regionais de Sergipe</h1></div>
       <span class="tagline">75 municípios · 4 regionais</span>
     </div>
+    <button class="export-btn" id="exportBtn" title="Exportar o mapa como imagem PNG">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+      <span class="lbl">Exportar imagem</span>
+    </button>
     <span class="credit">base cartográfica IBGE</span>
   </header>
 
@@ -186,7 +253,7 @@
     <aside>
       <div class="side-section">
         <div class="side-section-head">
-          <span></span>
+          <button class="clear-all" id="resetColors" hidden>restaurar cores</button>
           <button class="clear-all" id="clearAll" hidden>limpar tudo</button>
         </div>
         <div class="search-row">
@@ -197,20 +264,29 @@
       </div>
 
       <div class="selection-strip" id="selStrip">
-        <span class="sd" id="selDot"></span>
-        <span class="st"><b id="selName"></b><span id="selRegion"></span></span>
-        <button id="selClear" title="limpar seleção" aria-label="limpar seleção">&times;</button>
+        <div class="sel-top">
+          <span class="sd" id="selDot"></span>
+          <span class="st"><b id="selName"></b><span id="selRegion"></span></span>
+          <button id="selClear" title="limpar seleção" aria-label="limpar seleção">&times;</button>
+        </div>
+        <div class="color-panel">
+          <div class="color-title">Cor desta cidade</div>
+          <div class="swatches" id="swatches" role="group" aria-label="Cores sugeridas"></div>
+          <div class="color-row">
+            <label class="custom-color"><input type="color" id="colorInput" value="#e6394b" aria-label="Escolher outra cor"><span>Outra cor</span></label>
+            <button class="link-btn" id="colorReset" hidden>voltar à cor da regional</button>
+          </div>
+        </div>
       </div>
 
       <div class="index-head"><span>Municípios <b id="idxCount">75</b></span><span id="idxFilterLabel"></span></div>
       <ul class="index" id="indexList">
 <li class="idx-group" data-group="norte">
-        <div class="idx-group-head"><span class="idx-dot" style="background:#5b8dbe"></span>Regional Norte<span class="idx-group-count">14</span></div>
+        <div class="idx-group-head"><span class="idx-dot" style="background:#5b8dbe"></span>Regional Norte<span class="idx-group-count">13</span></div>
         <ul class="idx-group-rows">
 <li class="idx-row" data-name="Canindé de São Francisco" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Canindé de São Francisco</span></li>
 <li class="idx-row" data-name="Carira" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Carira</span></li>
 <li class="idx-row" data-name="Frei Paulo" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Frei Paulo</span></li>
-<li class="idx-row" data-name="Moita Bonita" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Moita Bonita</span></li>
 <li class="idx-row" data-name="Monte Alegre de Sergipe" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Monte Alegre de Sergipe</span></li>
 <li class="idx-row" data-name="Nossa Senhora Aparecida" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Nossa Senhora Aparecida</span></li>
 <li class="idx-row" data-name="Nossa Senhora da Glória" data-region="norte" tabindex="0" role="button"><span class="idx-dot" style="background:#5b8dbe"></span><span class="idx-name">Nossa Senhora da Glória</span></li>
@@ -272,7 +348,7 @@
         </ul>
       </li>
 <li class="idx-group" data-group="sul">
-        <div class="idx-group-head"><span class="idx-dot" style="background:#8ca05a"></span>Regional Sul<span class="idx-group-count">22</span></div>
+        <div class="idx-group-head"><span class="idx-dot" style="background:#8ca05a"></span>Regional Sul<span class="idx-group-count">23</span></div>
         <ul class="idx-group-rows">
 <li class="idx-row" data-name="Arauá" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Arauá</span></li>
 <li class="idx-row" data-name="Areia Branca" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Areia Branca</span></li>
@@ -286,6 +362,7 @@
 <li class="idx-row" data-name="Itaporanga d'Ajuda" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Itaporanga d'Ajuda</span></li>
 <li class="idx-row" data-name="Lagarto" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Lagarto</span></li>
 <li class="idx-row" data-name="Macambira" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Macambira</span></li>
+<li class="idx-row" data-name="Moita Bonita" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Moita Bonita</span></li>
 <li class="idx-row" data-name="Pedrinhas" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Pedrinhas</span></li>
 <li class="idx-row" data-name="Poço Verde" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Poço Verde</span></li>
 <li class="idx-row" data-name="Riachão do Dantas" data-region="sul" tabindex="0" role="button"><span class="idx-dot" style="background:#8ca05a"></span><span class="idx-name">Riachão do Dantas</span></li>
@@ -313,7 +390,7 @@
     </aside>
 
     <div class="map-area" id="mapArea">
-      <span class="map-hint">arraste/pinça para mover e ampliar · "/" busca</span>
+      <span class="map-hint">arraste/pinça para mover e ampliar · clique numa cidade para escolher a cor · "/" busca</span>
 
       <svg id="mapSvg" viewBox="0 0 720 807" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -362,7 +439,7 @@
 <path class="mun" data-name="Malhada dos Bois" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 508.88,342.99 L 508.29,348.20 L 504.03,343.68 L 495.42,334.54 L 488.40,327.08 L 473.91,314.16 L 493.46,309.55 L 500.45,305.16 L 501.69,304.38 L 500.90,315.79 L 502.12,316.49 L 513.10,322.34 L 513.81,332.02 L 509.09,341.22 L 508.88,342.99 Z"/>
 <path class="mun" data-name="Malhador" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 368.47,425.77 L 368.81,429.45 L 370.17,429.36 L 373.91,433.02 L 374.48,437.71 L 378.54,438.70 L 381.79,443.83 L 386.47,444.48 L 386.31,448.42 L 389.50,449.73 L 392.19,453.19 L 393.50,457.10 L 391.82,461.55 L 394.97,464.58 L 393.84,465.84 L 392.87,463.85 L 391.56,464.58 L 390.31,464.57 L 389.50,465.99 L 387.09,465.24 L 385.42,466.20 L 384.95,464.71 L 381.99,463.74 L 379.77,465.72 L 379.78,467.62 L 377.46,468.43 L 375.74,467.04 L 373.38,470.80 L 369.51,471.28 L 367.40,474.05 L 361.19,477.95 L 360.19,477.03 L 361.65,475.47 L 362.79,475.06 L 361.60,474.57 L 360.55,474.41 L 355.19,472.69 L 353.81,470.90 L 355.78,469.58 L 357.69,464.72 L 359.24,458.05 L 356.53,445.44 L 356.52,445.41 L 355.27,440.19 L 356.80,436.04 L 359.29,432.73 L 361.48,431.06 L 365.85,427.75 L 368.47,425.77 Z"/>
 <path class="mun" data-name="Maruim" data-region="metro" fill="#d2933f" stroke="#ffffff" stroke-width="1" d="M 444.52,456.47 L 446.16,457.76 L 449.63,457.07 L 451.95,459.66 L 455.50,459.85 L 457.78,463.52 L 454.28,469.47 L 451.54,481.14 L 451.41,481.86 L 451.78,488.69 L 449.67,492.33 L 447.73,492.07 L 444.96,493.83 L 439.53,490.69 L 431.09,494.99 L 428.82,493.53 L 427.98,491.36 L 428.33,488.33 L 424.20,487.47 L 422.99,489.35 L 421.18,488.75 L 418.07,481.96 L 419.52,480.41 L 419.19,478.55 L 421.86,477.15 L 421.74,475.09 L 420.76,472.59 L 421.44,471.21 L 423.41,470.17 L 424.98,462.93 L 432.73,463.66 L 434.92,457.12 L 444.04,445.99 L 443.20,452.93 L 444.52,456.47 Z"/>
-<path class="mun" data-name="Moita Bonita" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 353.55,402.93 L 354.62,404.41 L 357.70,403.62 L 359.42,403.13 L 360.43,405.56 L 362.95,406.23 L 362.03,409.89 L 362.81,412.39 L 365.73,415.93 L 369.25,416.52 L 372.75,415.75 L 377.36,417.32 L 380.68,416.92 L 385.86,423.54 L 385.03,423.66 L 379.74,420.48 L 374.00,420.64 L 371.80,423.14 L 369.63,423.34 L 368.47,425.77 L 365.85,427.75 L 361.48,431.06 L 359.29,432.73 L 356.80,436.04 L 355.27,440.19 L 356.52,445.41 L 356.53,445.44 L 349.93,447.10 L 345.30,445.85 L 344.41,444.37 L 345.16,442.22 L 342.99,442.03 L 342.18,439.60 L 341.44,437.41 L 339.64,436.95 L 337.83,434.18 L 337.47,436.72 L 335.13,436.46 L 334.04,435.10 L 334.72,431.90 L 334.73,431.73 L 334.05,426.10 L 334.89,423.93 L 333.44,421.36 L 333.08,419.93 L 332.27,418.84 L 340.10,411.65 L 343.49,410.26 L 343.68,406.32 L 350.17,402.79 L 353.55,402.93 Z"/>
+<path class="mun" data-name="Moita Bonita" data-region="sul" fill="#8ca05a" stroke="#ffffff" stroke-width="1" d="M 353.55,402.93 L 354.62,404.41 L 357.70,403.62 L 359.42,403.13 L 360.43,405.56 L 362.95,406.23 L 362.03,409.89 L 362.81,412.39 L 365.73,415.93 L 369.25,416.52 L 372.75,415.75 L 377.36,417.32 L 380.68,416.92 L 385.86,423.54 L 385.03,423.66 L 379.74,420.48 L 374.00,420.64 L 371.80,423.14 L 369.63,423.34 L 368.47,425.77 L 365.85,427.75 L 361.48,431.06 L 359.29,432.73 L 356.80,436.04 L 355.27,440.19 L 356.52,445.41 L 356.53,445.44 L 349.93,447.10 L 345.30,445.85 L 344.41,444.37 L 345.16,442.22 L 342.99,442.03 L 342.18,439.60 L 341.44,437.41 L 339.64,436.95 L 337.83,434.18 L 337.47,436.72 L 335.13,436.46 L 334.04,435.10 L 334.72,431.90 L 334.73,431.73 L 334.05,426.10 L 334.89,423.93 L 333.44,421.36 L 333.08,419.93 L 332.27,418.84 L 340.10,411.65 L 343.49,410.26 L 343.68,406.32 L 350.17,402.79 L 353.55,402.93 Z"/>
 <path class="mun" data-name="Monte Alegre de Sergipe" data-region="norte" fill="#5b8dbe" stroke="#ffffff" stroke-width="1" d="M 284.91,204.54 L 297.97,207.90 L 304.68,209.62 L 320.06,222.06 L 323.03,224.46 L 322.91,226.70 L 325.71,227.04 L 325.32,229.96 L 319.43,225.34 L 320.05,229.92 L 317.32,228.10 L 314.75,229.89 L 315.62,233.14 L 318.24,233.10 L 315.69,235.31 L 317.12,238.95 L 312.56,240.47 L 312.46,240.45 L 308.26,239.62 L 308.45,237.20 L 306.80,235.62 L 302.76,237.15 L 300.79,234.64 L 299.46,235.62 L 297.22,239.32 L 295.45,237.47 L 291.69,240.06 L 288.59,239.06 L 286.73,241.94 L 285.23,240.16 L 284.68,242.54 L 282.05,243.75 L 279.58,242.30 L 278.20,244.37 L 274.97,243.31 L 274.93,243.30 L 272.38,246.92 L 270.46,241.39 L 268.82,241.74 L 262.33,236.68 L 262.91,235.43 L 260.82,234.88 L 258.87,237.62 L 257.54,236.34 L 255.58,239.72 L 251.63,237.01 L 249.04,240.84 L 245.97,239.61 L 243.09,242.55 L 240.32,242.66 L 237.51,246.72 L 235.21,247.16 L 234.57,249.50 L 232.33,248.50 L 230.55,249.78 L 227.80,247.15 L 224.05,247.30 L 221.69,249.36 L 220.60,248.42 L 211.69,245.71 L 208.43,242.95 L 205.41,242.06 L 203.30,243.09 L 189.54,236.95 L 191.87,251.20 L 190.39,249.09 L 184.11,241.94 L 179.90,232.18 L 175.78,222.61 L 174.70,214.58 L 180.44,213.15 L 192.37,213.75 L 200.22,210.97 L 206.04,212.20 L 206.11,210.55 L 208.64,209.03 L 208.82,210.17 L 212.00,211.80 L 219.52,206.54 L 220.98,209.28 L 223.07,208.81 L 225.63,211.68 L 230.18,210.74 L 232.62,207.08 L 236.35,206.50 L 240.42,209.73 L 242.95,208.32 L 244.61,210.35 L 246.19,209.40 L 247.40,211.10 L 251.53,211.00 L 254.43,208.52 L 258.01,210.16 L 258.68,207.23 L 260.34,207.30 L 261.58,205.70 L 263.29,200.68 L 270.35,200.83 L 277.58,202.66 L 284.91,204.54 Z"/>
 <path class="mun" data-name="Muribeca" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 473.91,314.16 L 488.40,327.08 L 495.42,334.54 L 504.03,343.68 L 508.29,348.20 L 512.92,351.90 L 512.48,355.42 L 512.14,357.13 L 509.86,358.43 L 507.66,358.23 L 504.91,360.86 L 503.41,359.97 L 502.07,360.83 L 501.09,369.51 L 500.31,369.99 L 498.29,367.46 L 494.47,366.93 L 491.36,366.68 L 490.62,365.05 L 489.27,360.01 L 486.74,357.48 L 483.31,351.90 L 484.30,348.94 L 482.18,345.09 L 485.45,340.78 L 483.83,339.51 L 482.99,340.20 L 478.37,333.53 L 477.18,332.95 L 477.31,324.01 L 474.96,323.26 L 470.67,325.42 L 472.79,318.08 L 472.82,317.95 L 472.94,317.54 L 473.91,314.16 Z"/>
 <path class="mun" data-name="Neópolis" data-region="sertaneja" fill="#5c9468" stroke="#ffffff" stroke-width="1" d="M 569.43,299.00 L 572.86,303.07 L 574.30,306.70 L 575.79,305.47 L 582.97,306.70 L 585.52,306.86 L 584.81,305.22 L 586.82,302.45 L 593.02,304.05 L 594.28,303.38 L 604.69,321.38 L 623.89,315.62 L 628.34,313.98 L 633.78,318.99 L 636.80,324.31 L 636.81,324.33 L 635.85,336.68 L 637.37,343.24 L 638.39,345.32 L 638.25,352.31 L 636.92,355.10 L 637.86,358.02 L 636.77,362.72 L 633.18,363.86 L 633.48,365.04 L 630.82,364.74 L 631.34,366.14 L 630.41,365.69 L 629.21,367.43 L 629.35,369.73 L 627.66,367.59 L 625.98,368.98 L 626.50,373.18 L 624.23,379.80 L 627.25,381.34 L 624.08,384.88 L 624.23,386.84 L 622.34,368.54 L 622.21,367.21 L 621.62,363.50 L 621.33,358.44 L 624.72,356.30 L 619.60,355.01 L 618.07,354.46 L 606.00,350.59 L 586.79,352.86 L 580.63,343.36 L 575.37,335.16 L 573.48,328.32 L 574.15,323.30 L 573.01,321.31 L 568.96,318.53 L 564.74,320.27 L 561.87,317.33 L 558.78,316.53 L 558.67,316.41 L 554.67,312.91 L 553.03,309.03 L 550.68,308.44 L 551.04,306.77 L 550.05,307.40 L 550.84,305.65 L 551.17,305.42 L 552.53,304.13 L 555.49,299.18 L 559.13,300.39 L 565.63,296.32 L 566.80,298.97 L 569.43,299.00 Z"/>
@@ -446,7 +523,7 @@
 <g class="mun-tag" data-region="sertaneja"><circle cx="501.50" cy="326.71" r="1.3" class="mun-dot"/><text x="503.60" y="325.01" class="mun-label">Malhada dos Bois</text></g>
 <g class="mun-tag" data-region="metro"><circle cx="373.50" cy="456.35" r="1.3" class="mun-dot"/><text x="375.60" y="454.65" class="mun-label">Malhador</text></g>
 <g class="mun-tag" data-region="metro"><circle cx="436.33" cy="474.98" r="1.3" class="mun-dot"/><text x="438.43" y="473.28" class="mun-label">Maruim</text></g>
-<g class="mun-tag" data-region="norte"><circle cx="353.91" cy="424.23" r="1.3" class="mun-dot"/><text x="356.01" y="422.53" class="mun-label">Moita Bonita</text></g>
+<g class="mun-tag" data-region="sul"><circle cx="353.91" cy="424.23" r="1.3" class="mun-dot"/><text x="356.01" y="422.53" class="mun-label">Moita Bonita</text></g>
 <g class="mun-tag" data-region="norte"><circle cx="257.58" cy="228.74" r="1.3" class="mun-dot"/><text x="259.68" y="227.04" class="mun-label">Monte Alegre de Sergipe</text></g>
 <g class="mun-tag" data-region="sertaneja"><circle cx="490.57" cy="345.19" r="1.3" class="mun-dot"/><text x="492.67" y="343.49" class="mun-label">Muribeca</text></g>
 <g class="mun-tag" data-region="sertaneja"><circle cx="598.64" cy="333.93" r="1.3" class="mun-dot"/><text x="600.74" y="332.23" class="mun-label">Neópolis</text></g>
@@ -507,13 +584,63 @@
 
   <footer>Divisão por regional reproduzida a partir do mapa de referência fornecido pelo usuário. Malha municipal: IBGE (via geodata-br).</footer>
 
+  <div class="modal-overlay" id="exportOverlay" hidden>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+      <h2 id="exportTitle">Exportar imagem</h2>
+      <p class="modal-sub">Gera um arquivo PNG com as cores atuais do mapa. Depois é só inserir no PowerPoint (Inserir → Imagens).</p>
+      <div class="modal-field">
+        <label><input type="radio" name="exportScope" value="all" checked> Mapa completo (todas as regionais)</label>
+        <label><input type="radio" name="exportScope" value="region"> Somente uma regional</label>
+      </div>
+      <select id="exportRegionSelect" class="modal-select" disabled aria-label="Escolha a regional">
+        <option value="norte">Regional Norte</option>
+        <option value="sertaneja">Regional Sertaneja</option>
+        <option value="metro">Regional Metropolitana</option>
+        <option value="sul">Regional Sul</option>
+        <option value="sem">Sem operação</option>
+      </select>
+      <div class="opt-checks">
+        <label><input type="checkbox" id="optNames" checked> Mostrar o nome das cidades</label>
+        <label><input type="checkbox" id="optLegend"> Incluir legenda das regionais</label>
+      </div>
+      <div class="opt-grid">
+        <label>Tamanho dos nomes
+          <select id="optFont" class="modal-select">
+            <option value="6.5">Pequeno</option>
+            <option value="8" selected>Médio</option>
+            <option value="10">Grande</option>
+          </select>
+        </label>
+        <label>Fundo
+          <select id="optBg" class="modal-select">
+            <option value="transparent" selected>Transparente</option>
+            <option value="white">Branco</option>
+            <option value="dark">Escuro</option>
+          </select>
+        </label>
+        <label>Qualidade
+          <select id="optQuality" class="modal-select">
+            <option value="2">Normal</option>
+            <option value="3" selected>Alta</option>
+            <option value="4">Máxima</option>
+          </select>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="exportCancel" class="btn-secondary">Cancelar</button>
+        <button id="exportConfirm" class="btn-primary">Baixar PNG</button>
+      </div>
+      <p class="modal-status" id="exportStatus" hidden></p>
+    </div>
+  </div>
+
 <script>
 (function(){
   const REGION_NAMES = {"norte": "Regional Norte", "sertaneja": "Regional Sertaneja", "metro": "Regional Metropolitana", "sul": "Regional Sul", "sem": "Sem operação"};
   const REGION_COLORS = {"norte": "#5b8dbe", "sertaneja": "#5c9468", "metro": "#d2933f", "sul": "#8ca05a", "sem": "#9aa39d"};
   const REGION_ORDER = ["norte", "sertaneja", "metro", "sul", "sem"];
-  const COUNTS = {"norte": 14, "sertaneja": 22, "metro": 16, "sul": 22, "sem": 1};
-  const CENTROIDS = {"Amparo de São Francisco": [506.8482316343512, 255.8616206240113, "sertaneja"], "Aquidabã": [444.5111897965572, 311.72487649639334, "sertaneja"], "Aracaju": [438.6062407807222, 567.3474408226299, "metro"], "Arauá": [266.219465429642, 666.7711290107164, "sul"], "Areia Branca": [355.7078055154091, 491.8783329371182, "sul"], "Barra dos Coqueiros": [488.6676666289978, 515.292117956745, "metro"], "Boquim": [253.18572152392127, 623.7656795561279, "sul"], "Brejo Grande": [675.9716357481128, 377.0203831254265, "sertaneja"], "Campo do Brito": [291.787989242295, 490.3466832590847, "sul"], "Canhoba": [477.7165883714921, 255.1771258175451, "sertaneja"], "Canindé de São Francisco": [136.24732738704728, 94.55178018215923, "norte"], "Capela": [458.5174774868012, 365.66842713385165, "sem"], "Carira": [207.77824695667667, 331.4843171310483, "norte"], "Carmópolis": [498.07198081844865, 452.7639451741903, "metro"], "Cedro de São João": [517.5290580341812, 301.82506653443335, "sertaneja"], "Cristinápolis": [214.52433706654193, 760.1568560110888, "sul"], "Cumbe": [410.1998851899159, 331.7754995678696, "sertaneja"], "Divina Pastora": [415.70372230043364, 455.60951375720555, "metro"], "Estância": [322.66868861823446, 663.0133138037106, "sul"], "Feira Nova": [355.73885628391884, 319.757171946228, "sertaneja"], "Frei Paulo": [265.9623084152089, 400.66266061155164, "norte"], "Gararu": [394.9390499220105, 220.31149563352525, "sertaneja"], "General Maynard": [487.55860885104903, 460.79955942903, "metro"], "Gracho Cardoso": [402.9918444944262, 287.12690236741514, "sertaneja"], "Ilha das Flores": [639.7736665691904, 368.42888277847396, "sertaneja"], "Indiaroba": [281.983504332587, 751.8792675432638, "sul"], "Itabaiana": [322.3910918137758, 457.52713015054275, "sul"], "Itabaianinha": [188.9855593567117, 672.6248097039659, "sul"], "Itabi": [412.1293389406058, 236.98386406860047, "sertaneja"], "Itaporanga d'Ajuda": [352.77278651706473, 589.6132053810003, "sul"], "Japaratuba": [513.1300182885306, 398.0869156361959, "sertaneja"], "Japoatã": [547.7403662623801, 353.50148657157683, "sertaneja"], "Lagarto": [236.30641728526842, 535.1544527036176, "sul"], "Laranjeiras": [416.0305296238092, 501.9137802860979, "metro"], "Macambira": [258.0346813662591, 455.629954674615, "sul"], "Malhada dos Bois": [501.4954047956372, 326.7058647106644, "sertaneja"], "Malhador": [373.4983358580163, 456.35401226796034, "metro"], "Maruim": [436.3253632919897, 474.9835243251678, "metro"], "Moita Bonita": [353.90706340351426, 424.22521487170957, "norte"], "Monte Alegre de Sergipe": [257.5811411395303, 228.7386152187285, "norte"], "Muribeca": [490.57384628641364, 345.19039806096214, "sertaneja"], "Neópolis": [598.6388002214813, 333.93050810467156, "sertaneja"], "Nossa Senhora Aparecida": [294.71898780900904, 316.5767068862023, "norte"], "Nossa Senhora da Glória": [281.05992618287394, 272.16961767779924, "norte"], "Nossa Senhora das Dores": [386.29627919626415, 367.2611569985201, "norte"], "Nossa Senhora de Lourdes": [469.54561413123844, 234.11025177710934, "sertaneja"], "Nossa Senhora do Socorro": [417.7476943484869, 524.475143135464, "metro"], "Pacatuba": [610.6006938600717, 392.082376573004, "sertaneja"], "Pedra Mole": [226.15048156610231, 444.2686011212228, "norte"], "Pedrinhas": [236.3365428320905, 651.057150195653, "sul"], "Pinhão": [192.8034887169641, 416.7464595360431, "norte"], "Pirambu": [538.196001463183, 453.53017761632896, "metro"], "Poço Redondo": [208.53237464836846, 157.11513233054336, "norte"], "Poço Verde": [61.30923921443195, 503.03272945438783, "sul"], "Porto da Folha": [321.8228716014992, 186.18497512905003, "norte"], "Propriá": [552.3731030731864, 293.60614284031146, "sertaneja"], "Riachão do Dantas": [186.48619286461704, 582.8788738362452, "sul"], "Riachuelo": [395.4015251904512, 469.8499913286787, "metro"], "Ribeirópolis": [327.08632804911764, 394.00948685744083, "norte"], "Rosário do Catete": [463.4749096365455, 457.04791642178054, "metro"], "Salgado": [302.25575777987007, 600.7101485646242, "sul"], "Santa Luzia do Itanhy": [286.34013947129284, 713.2835325248977, "sul"], "Santana do São Francisco": [614.7024651169626, 304.9970201312561, "sertaneja"], "Santa Rosa de Lima": [391.29747084329824, 436.9181168133434, "metro"], "Santo Amaro das Brotas": [490.46450022113095, 490.79967176514873, "metro"], "São Cristóvão": [393.37132976057694, 558.3442753079303, "metro"], "São Domingos": [268.86684449372876, 491.95794469416774, "sul"], "São Francisco": [528.618693333886, 322.8971545960072, "sertaneja"], "São Miguel do Aleixo": [347.63866512044774, 343.14286611561045, "norte"], "Simão Dias": [184.43222302602024, 472.5267664928623, "sul"], "Siriri": [433.50249740959237, 417.18270962970513, "metro"], "Telha": [524.2741989941196, 272.1727400590886, "sertaneja"], "Tobias Barreto": [102.63535763452052, 609.9486203629087, "sul"], "Tomar do Geru": [155.05719383795662, 718.4782069738501, "sul"], "Umbaúba": [231.21763606726006, 724.2488520739618, "sul"]};
+  const COUNTS = {"norte": 13, "sertaneja": 22, "metro": 16, "sul": 23, "sem": 1};
+  const CENTROIDS = {"Amparo de São Francisco": [506.8482316343512, 255.8616206240113, "sertaneja"], "Aquidabã": [444.5111897965572, 311.72487649639334, "sertaneja"], "Aracaju": [438.6062407807222, 567.3474408226299, "metro"], "Arauá": [266.219465429642, 666.7711290107164, "sul"], "Areia Branca": [355.7078055154091, 491.8783329371182, "sul"], "Barra dos Coqueiros": [488.6676666289978, 515.292117956745, "metro"], "Boquim": [253.18572152392127, 623.7656795561279, "sul"], "Brejo Grande": [675.9716357481128, 377.0203831254265, "sertaneja"], "Campo do Brito": [291.787989242295, 490.3466832590847, "sul"], "Canhoba": [477.7165883714921, 255.1771258175451, "sertaneja"], "Canindé de São Francisco": [136.24732738704728, 94.55178018215923, "norte"], "Capela": [458.5174774868012, 365.66842713385165, "sem"], "Carira": [207.77824695667667, 331.4843171310483, "norte"], "Carmópolis": [498.07198081844865, 452.7639451741903, "metro"], "Cedro de São João": [517.5290580341812, 301.82506653443335, "sertaneja"], "Cristinápolis": [214.52433706654193, 760.1568560110888, "sul"], "Cumbe": [410.1998851899159, 331.7754995678696, "sertaneja"], "Divina Pastora": [415.70372230043364, 455.60951375720555, "metro"], "Estância": [322.66868861823446, 663.0133138037106, "sul"], "Feira Nova": [355.73885628391884, 319.757171946228, "sertaneja"], "Frei Paulo": [265.9623084152089, 400.66266061155164, "norte"], "Gararu": [394.9390499220105, 220.31149563352525, "sertaneja"], "General Maynard": [487.55860885104903, 460.79955942903, "metro"], "Gracho Cardoso": [402.9918444944262, 287.12690236741514, "sertaneja"], "Ilha das Flores": [639.7736665691904, 368.42888277847396, "sertaneja"], "Indiaroba": [281.983504332587, 751.8792675432638, "sul"], "Itabaiana": [322.3910918137758, 457.52713015054275, "sul"], "Itabaianinha": [188.9855593567117, 672.6248097039659, "sul"], "Itabi": [412.1293389406058, 236.98386406860047, "sertaneja"], "Itaporanga d'Ajuda": [352.77278651706473, 589.6132053810003, "sul"], "Japaratuba": [513.1300182885306, 398.0869156361959, "sertaneja"], "Japoatã": [547.7403662623801, 353.50148657157683, "sertaneja"], "Lagarto": [236.30641728526842, 535.1544527036176, "sul"], "Laranjeiras": [416.0305296238092, 501.9137802860979, "metro"], "Macambira": [258.0346813662591, 455.629954674615, "sul"], "Malhada dos Bois": [501.4954047956372, 326.7058647106644, "sertaneja"], "Malhador": [373.4983358580163, 456.35401226796034, "metro"], "Maruim": [436.3253632919897, 474.9835243251678, "metro"], "Moita Bonita": [353.90706340351426, 424.22521487170957, "sul"], "Monte Alegre de Sergipe": [257.5811411395303, 228.7386152187285, "norte"], "Muribeca": [490.57384628641364, 345.19039806096214, "sertaneja"], "Neópolis": [598.6388002214813, 333.93050810467156, "sertaneja"], "Nossa Senhora Aparecida": [294.71898780900904, 316.5767068862023, "norte"], "Nossa Senhora da Glória": [281.05992618287394, 272.16961767779924, "norte"], "Nossa Senhora das Dores": [386.29627919626415, 367.2611569985201, "norte"], "Nossa Senhora de Lourdes": [469.54561413123844, 234.11025177710934, "sertaneja"], "Nossa Senhora do Socorro": [417.7476943484869, 524.475143135464, "metro"], "Pacatuba": [610.6006938600717, 392.082376573004, "sertaneja"], "Pedra Mole": [226.15048156610231, 444.2686011212228, "norte"], "Pedrinhas": [236.3365428320905, 651.057150195653, "sul"], "Pinhão": [192.8034887169641, 416.7464595360431, "norte"], "Pirambu": [538.196001463183, 453.53017761632896, "metro"], "Poço Redondo": [208.53237464836846, 157.11513233054336, "norte"], "Poço Verde": [61.30923921443195, 503.03272945438783, "sul"], "Porto da Folha": [321.8228716014992, 186.18497512905003, "norte"], "Propriá": [552.3731030731864, 293.60614284031146, "sertaneja"], "Riachão do Dantas": [186.48619286461704, 582.8788738362452, "sul"], "Riachuelo": [395.4015251904512, 469.8499913286787, "metro"], "Ribeirópolis": [327.08632804911764, 394.00948685744083, "norte"], "Rosário do Catete": [463.4749096365455, 457.04791642178054, "metro"], "Salgado": [302.25575777987007, 600.7101485646242, "sul"], "Santa Luzia do Itanhy": [286.34013947129284, 713.2835325248977, "sul"], "Santana do São Francisco": [614.7024651169626, 304.9970201312561, "sertaneja"], "Santa Rosa de Lima": [391.29747084329824, 436.9181168133434, "metro"], "Santo Amaro das Brotas": [490.46450022113095, 490.79967176514873, "metro"], "São Cristóvão": [393.37132976057694, 558.3442753079303, "metro"], "São Domingos": [268.86684449372876, 491.95794469416774, "sul"], "São Francisco": [528.618693333886, 322.8971545960072, "sertaneja"], "São Miguel do Aleixo": [347.63866512044774, 343.14286611561045, "norte"], "Simão Dias": [184.43222302602024, 472.5267664928623, "sul"], "Siriri": [433.50249740959237, 417.18270962970513, "metro"], "Telha": [524.2741989941196, 272.1727400590886, "sertaneja"], "Tobias Barreto": [102.63535763452052, 609.9486203629087, "sul"], "Tomar do Geru": [155.05719383795662, 718.4782069738501, "sul"], "Umbaúba": [231.21763606726006, 724.2488520739618, "sul"]};
   const W = 720.00, H = 807.31;
   const KM_PER_UNIT = 0.2979316397107234; // real-world km represented by 1 svg content unit
   const NICE_KM_STEPS = [1,2,5,10,20,50,100,200,500];
@@ -708,9 +835,9 @@
     if(activeRow) activeRow.scrollIntoView({block:'nearest'});
 
     const region = data[2];
-    selDot.style.background = REGION_COLORS[region];
-    selName.textContent = name;
+        selName.textContent = name;
     selRegion.textContent = REGION_NAMES[region];
+    syncColorPanel(name);
     selStrip.classList.add('show');
     updateClearAllVisibility();
 
@@ -718,6 +845,65 @@
     if(updateHash !== false) history.replaceState(null, '', '#' + encodeURIComponent(name));
   }
   selClear.addEventListener('click', () => { clearSelection(); resetView(); });
+
+  // ------------------------------------------------------------------
+  // Cor personalizada por município: clique numa cidade (no mapa ou na
+  // lista) e escolha uma cor. A cor vale para o mapa e para a imagem exportada.
+  // ------------------------------------------------------------------
+  const COLOR_PRESETS = [
+    ['#e6394b','Vermelho'], ['#f28c28','Laranja'], ['#f2c94c','Amarelo'], ['#3fa66b','Verde'], ['#1fa5a5','Turquesa'],
+    ['#2f6fed','Azul'], ['#7b4fd6','Roxo'], ['#e0559b','Rosa'], ['#8b5e3c','Marrom'], ['#20241f','Grafite']
+  ];
+  const ORIGINAL_FILL = {}, pathByName = {}, rowByName = {}, customColors = {};
+  munPaths.forEach(p => { const n = p.getAttribute('data-name'); ORIGINAL_FILL[n] = p.getAttribute('fill').toLowerCase(); pathByName[n] = p; });
+  idxRows.forEach(r => { rowByName[r.getAttribute('data-name')] = r; });
+  const swatchesEl = document.getElementById('swatches');
+  const colorInput = document.getElementById('colorInput');
+  const colorReset = document.getElementById('colorReset');
+  const resetColorsBtn = document.getElementById('resetColors');
+
+  function currentFill(name){ return customColors[name] || ORIGINAL_FILL[name]; }
+
+  COLOR_PRESETS.forEach(([hex, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'swatch'; b.dataset.color = hex;
+    b.style.background = hex; b.title = label; b.setAttribute('aria-label', label);
+    b.addEventListener('click', () => { if(selectedName) setCityColor(selectedName, hex); });
+    swatchesEl.appendChild(b);
+  });
+
+  function syncColorPanel(name){
+    const c = currentFill(name);
+    swatchesEl.querySelectorAll('.swatch').forEach(b => b.classList.toggle('active', b.dataset.color === c));
+    colorInput.value = c;
+    colorReset.hidden = !customColors[name];
+    selDot.style.background = c;
+  }
+  function updateCustomCount(){
+    const n = Object.keys(customColors).length;
+    resetColorsBtn.hidden = n === 0;
+    resetColorsBtn.textContent = 'restaurar cores (' + n + ')';
+  }
+  function paintCity(name){
+    const c = currentFill(name);
+    const p = pathByName[name]; if(p) p.setAttribute('fill', c);
+    const row = rowByName[name]; if(row) row.querySelector('.idx-dot').style.background = c;
+    if(selectedName === name) syncColorPanel(name);
+    updateCustomCount();
+  }
+  function setCityColor(name, hex){
+    hex = hex.toLowerCase();
+    if(hex === ORIGINAL_FILL[name]) delete customColors[name]; else customColors[name] = hex;
+    paintCity(name);
+  }
+  colorInput.addEventListener('input', () => { if(selectedName) setCityColor(selectedName, colorInput.value); });
+  colorReset.addEventListener('click', () => { if(selectedName){ delete customColors[selectedName]; paintCity(selectedName); } });
+  resetColorsBtn.addEventListener('click', () => {
+    const names = Object.keys(customColors);
+    if(!names.length) return;
+    if(!confirm('Voltar todas as cidades pintadas (' + names.length + ') à cor da regional?')) return;
+    names.forEach(n => { delete customColors[n]; paintCity(n); });
+  });
 
   idxRows.forEach(row => {
     row.addEventListener('click', () => selectMunicipality(row.getAttribute('data-name'), true));
@@ -808,9 +994,10 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if(e.key === '/' && document.activeElement !== searchInput){
+    if(e.key === '/' && document.activeElement !== searchInput && exportOverlay.hidden){
       e.preventDefault(); searchInput.focus();
     } else if(e.key === 'Escape'){
+      if(!exportOverlay.hidden){ closeExportModal(); return; }
       if(document.activeElement === searchInput) searchInput.blur();
       clearAll.click();
     }
@@ -825,6 +1012,333 @@
   if(initialName && CENTROIDS[initialName]){
     selectMunicipality(initialName, true, false);
   }
+
+  // ------------------------------------------------------------------
+  // Exportar imagem (PNG) para usar no PowerPoint
+  // ------------------------------------------------------------------
+  // <<EXPORT-CORE-START>>
+  // Motor de exportação: desenha o mapa direto num <canvas> (sem depender do
+  // que está na tela), posiciona os nomes evitando sobreposição e devolve o canvas.
+  const EXPORT_FAMILY = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
+  let _measureCtx = null;
+  function textWidthUnits(text, fs){
+    if(!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
+    _measureCtx.font = '600 100px ' + EXPORT_FAMILY;
+    return _measureCtx.measureText(text).width * fs / 100;
+  }
+  function parsePts(d){
+    const pts = [], re = /(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g;
+    let m;
+    while((m = re.exec(d))) pts.push([parseFloat(m[1]), parseFloat(m[2])]);
+    return pts;
+  }
+  function bboxOf(pts){
+    let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+    for(const [x,y] of pts){ if(x<x0)x0=x; if(y<y0)y0=y; if(x>x1)x1=x; if(y>y1)y1=y; }
+    return {x:x0, y:y0, w:x1-x0, h:y1-y0};
+  }
+  function polyArea(pts){
+    let a = 0;
+    for(let i=0, j=pts.length-1; i<pts.length; j=i++) a += pts[j][0]*pts[i][1] - pts[i][0]*pts[j][1];
+    return Math.abs(a/2);
+  }
+  function pointInPoly(x, y, pts){
+    let inside = false;
+    for(let i=0, j=pts.length-1; i<pts.length; j=i++){
+      const xi=pts[i][0], yi=pts[i][1], xj=pts[j][0], yj=pts[j][1];
+      if(((yi > y) !== (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+  // ponto "bem dentro" do polígono (usado só se o centro informado cair fora dele)
+  function interiorPoint(pts){
+    const b = bboxOf(pts), steps = 28;
+    let best = null, bestD = -1;
+    for(let i=0; i<=steps; i++) for(let j=0; j<=steps; j++){
+      const x = b.x + b.w*i/steps, y = b.y + b.h*j/steps;
+      if(!pointInPoly(x, y, pts)) continue;
+      let dmin = Infinity;
+      for(let k=0; k<pts.length; k+=2){
+        const dx = pts[k][0]-x, dy = pts[k][1]-y, dd = dx*dx+dy*dy;
+        if(dd < dmin) dmin = dd;
+      }
+      if(dmin > bestD){ bestD = dmin; best = [x, y]; }
+    }
+    return best;
+  }
+  function splitLabel(name){
+    if(name.length <= 13 || name.indexOf(' ') < 0) return [name];
+    const words = name.split(' ');
+    let best = null, bestMax = Infinity;
+    for(let i=1; i<words.length; i++){
+      const a = words.slice(0,i).join(' '), b = words.slice(i).join(' ');
+      const m = Math.max(a.length, b.length);
+      if(m < bestMax){ bestMax = m; best = [a, b]; }
+    }
+    return best;
+  }
+  function rectOverlap(a, b){
+    const w = Math.min(a.x+a.w, b.x+b.w) - Math.max(a.x, b.x);
+    const h = Math.min(a.y+a.h, b.y+b.h) - Math.max(a.y, b.y);
+    return (w > 0 && h > 0) ? w*h : 0;
+  }
+
+  function buildCandidates(it, fs){
+    const list = [];
+    if(it.fits) list.push({x: it.cx - it.w/2, y: it.cy - it.h/2, align:'center', dot:false, leader:false, pen:0});
+    const dotR = 1.5, gap = fs*0.28;
+    const dirs = ['E','W','N','S','NE','NW','SE','SW'];
+    for(let ring=0; ring<5; ring++){
+      const off = dotR + gap + ring*fs*1.45;
+      const dg = off*0.72;
+      for(let k=0; k<dirs.length; k++){
+        let x, y, align;
+        switch(dirs[k]){
+          case 'E':  x = it.cx+off;      y = it.cy - it.h/2;   align='left';   break;
+          case 'W':  x = it.cx-off-it.w; y = it.cy - it.h/2;   align='right';  break;
+          case 'N':  x = it.cx-it.w/2;   y = it.cy-off-it.h;   align='center'; break;
+          case 'S':  x = it.cx-it.w/2;   y = it.cy+off;        align='center'; break;
+          case 'NE': x = it.cx+dg;       y = it.cy-dg-it.h;    align='left';   break;
+          case 'NW': x = it.cx-dg-it.w;  y = it.cy-dg-it.h;    align='right';  break;
+          case 'SE': x = it.cx+dg;       y = it.cy+dg;         align='left';   break;
+          default:   x = it.cx-dg-it.w;  y = it.cy+dg;         align='right';  break;
+        }
+        list.push({x, y, align, dot:true, leader: ring>0, pen: 1 + ring*8 + k*0.4});
+      }
+    }
+    return list;
+  }
+
+  function layoutLabels(items, fs){
+    const lineH = fs*1.12, pad = fs*0.14;
+    items.forEach(it => {
+      it.lines = splitLabel(it.name);
+      it.w = Math.max.apply(null, it.lines.map(l => textWidthUnits(l, fs)));
+      it.h = it.lines.length * lineH;
+      const x = it.cx - it.w/2, y = it.cy - it.h/2, ins = 0.6;
+      const probe = [[x+ins,y+ins],[x+it.w/2,y+ins],[x+it.w-ins,y+ins],[x+ins,y+it.h/2],[x+it.w-ins,y+it.h/2],
+                     [x+ins,y+it.h-ins],[x+it.w/2,y+it.h-ins],[x+it.w-ins,y+it.h-ins],[it.cx,it.cy]];
+      it.fits = probe.every(p => pointInPoly(p[0], p[1], it.pts));
+    });
+    const anchors = items.map(it => ({it, r:{x:it.cx-1.8, y:it.cy-1.8, w:3.6, h:3.6}}));
+    const placed = [];
+    items.slice().sort((a,b) => a.area - b.area).forEach(it => {
+      let best = null;
+      for(const c of buildCandidates(it, fs)){
+        const r = {x:c.x-pad, y:c.y-pad, w:it.w+2*pad, h:it.h+2*pad};
+        let ov = 0;
+        for(const p of placed) ov += rectOverlap(r, p.r);
+        for(const a of anchors) if(a.it !== it) ov += rectOverlap(r, a.r) * 6;
+        const cost = ov*100 + c.pen;
+        if(!best || cost < best.cost) best = {c, r, cost};
+        if(ov === 0) break;
+      }
+      const c = best.c;
+      it.place = {x:c.x, y:c.y, align:c.align, dot:c.dot, leader:c.leader, rect:{x:c.x, y:c.y, w:it.w, h:it.h}};
+      placed.push({it, r: best.r});
+    });
+    return lineH;
+  }
+
+  function renderExport(data, o){
+    const fs = o.fontUnits;
+    const dark = o.bg === 'dark';
+    const C = dark
+      ? {text:'#fbf7ea', halo:'rgba(10,16,12,0.82)', dot:'#fbf7ea', dotRing:'rgba(10,16,12,0.8)', leader:'rgba(251,247,234,0.75)', bg:'#0f2027'}
+      : {text:'#1b211c', halo:'rgba(255,255,255,0.92)', dot:'#1b211c', dotRing:'rgba(255,255,255,0.95)', leader:'rgba(27,33,28,0.7)', bg:'#ffffff'};
+
+    const muns = data.muns.map(m => {
+      const pts = parsePts(m.d);
+      const cen = data.centroids[m.name];
+      let cx = cen ? cen[0] : 0, cy = cen ? cen[1] : 0;
+      if(!cen || !pointInPoly(cx, cy, pts)){ const ip = interiorPoint(pts); if(ip){ cx = ip[0]; cy = ip[1]; } }
+      return {name:m.name, region:m.region, fill:m.fill, d:m.d, pts, cx, cy, area: polyArea(pts)};
+    });
+
+    let lineH = fs*1.12;
+    if(o.names) lineH = layoutLabels(muns, fs);
+
+    // enquadramento = polígonos + nomes + margem
+    let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+    const grow = r => { if(r.x<x0)x0=r.x; if(r.y<y0)y0=r.y; if(r.x+r.w>x1)x1=r.x+r.w; if(r.y+r.h>y1)y1=r.y+r.h; };
+    muns.forEach(m => { m.bb = bboxOf(m.pts); grow(m.bb); });
+    if(o.names) muns.forEach(m => grow(m.place.rect));
+    const margin = Math.max(fs*1.6, Math.max(x1-x0, y1-y0)*0.02);
+    let frame = {x:x0-margin, y:y0-margin, w:(x1-x0)+2*margin, h:(y1-y0)+2*margin};
+
+    // legenda das regionais: num canto livre; se não houver, numa faixa embaixo
+    let legend = null;
+    if(o.legend){
+      const regions = data.regionOrder.filter(r => muns.some(m => m.region === r));
+      const fsL = Math.max(fs*1.5, 9), sw = fsL*0.95, rowH = fsL*1.75;
+      let tw = 0;
+      regions.forEach(r => { tw = Math.max(tw, textWidthUnits(data.regionNames[r], fsL)); });
+      const lw = sw + fsL*0.6 + tw, lh = regions.length*rowH - (rowH - sw);
+      const corners = [
+        {x: frame.x+frame.w-margin-lw, y: frame.y+frame.h-margin-lh},
+        {x: frame.x+frame.w-margin-lw, y: frame.y+margin},
+        {x: frame.x+margin,            y: frame.y+frame.h-margin-lh},
+        {x: frame.x+margin,            y: frame.y+margin}
+      ];
+      const free = c => {
+        const r = {x:c.x-fsL*0.6, y:c.y-fsL*0.6, w:lw+fsL*1.2, h:lh+fsL*1.2};
+        if(muns.some(m => m.pts.some(p => p[0]>r.x && p[0]<r.x+r.w && p[1]>r.y && p[1]<r.y+r.h))) return false;
+        if(o.names && muns.some(m => rectOverlap(r, m.place.rect) > 0)) return false;
+        return true;
+      };
+      let pos = corners.find(free);
+      if(!pos){
+        pos = {x: frame.x+margin, y: frame.y+frame.h};
+        frame = {x:frame.x, y:frame.y, w:frame.w, h:frame.h + lh + margin};
+      }
+      legend = {regions, fsL, sw, rowH, x:pos.x, y:pos.y, w:lw, h:lh};
+    }
+
+    let ppu = o.ppu;
+    const MAXW = 6000;
+    if(frame.w*ppu > MAXW) ppu = MAXW/frame.w;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(frame.w*ppu));
+    canvas.height = Math.max(1, Math.round(frame.h*ppu));
+    const ctx = canvas.getContext('2d');
+    ctx.scale(canvas.width/frame.w, canvas.height/frame.h);
+    ctx.translate(-frame.x, -frame.y);
+    if(o.bg !== 'transparent'){ ctx.fillStyle = C.bg; ctx.fillRect(frame.x, frame.y, frame.w, frame.h); }
+
+    // municípios
+    ctx.lineJoin = 'round';
+    muns.forEach(m => {
+      const p = new Path2D(m.d);
+      ctx.fillStyle = m.fill; ctx.fill(p);
+      ctx.lineWidth = 1; ctx.strokeStyle = '#ffffff'; ctx.stroke(p);
+    });
+    // contorno das regionais
+    data.borders.forEach(b => {
+      ctx.lineWidth = 2.2; ctx.strokeStyle = 'rgba(245,242,232,0.92)'; ctx.stroke(new Path2D(b.d));
+    });
+
+    if(o.names){
+      // linhas-guia e pontos (só para nomes que ficaram fora do município)
+      muns.forEach(m => {
+        const pl = m.place;
+        if(!pl.dot) return;
+        if(pl.leader){
+          const nx = Math.max(pl.rect.x, Math.min(m.cx, pl.rect.x+pl.rect.w));
+          const ny = Math.max(pl.rect.y, Math.min(m.cy, pl.rect.y+pl.rect.h));
+          ctx.beginPath(); ctx.moveTo(m.cx, m.cy); ctx.lineTo(nx, ny);
+          ctx.lineWidth = 0.55; ctx.strokeStyle = C.leader; ctx.stroke();
+        }
+      });
+      muns.forEach(m => {
+        if(!m.place.dot) return;
+        ctx.beginPath(); ctx.arc(m.cx, m.cy, 1.5, 0, Math.PI*2);
+        ctx.fillStyle = C.dot; ctx.fill();
+        ctx.lineWidth = 0.7; ctx.strokeStyle = C.dotRing; ctx.stroke();
+      });
+      // nomes
+      ctx.font = '600 ' + fs + 'px ' + EXPORT_FAMILY;
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+      muns.forEach(m => {
+        const pl = m.place;
+        ctx.textAlign = pl.align;
+        const tx = pl.align === 'center' ? pl.rect.x + pl.rect.w/2 : (pl.align === 'left' ? pl.rect.x : pl.rect.x + pl.rect.w);
+        m.lines.forEach((ln, i) => {
+          const ty = pl.rect.y + lineH*(i + 0.5);
+          ctx.lineWidth = fs*0.34; ctx.strokeStyle = C.halo; ctx.strokeText(ln, tx, ty);
+          ctx.fillStyle = C.text; ctx.fillText(ln, tx, ty);
+        });
+      });
+    }
+
+    if(legend){
+      ctx.font = '600 ' + legend.fsL + 'px ' + EXPORT_FAMILY;
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      legend.regions.forEach((r, i) => {
+        const y = legend.y + i*legend.rowH;
+        ctx.fillStyle = data.regionColors[r];
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(legend.x, y, legend.sw, legend.sw, legend.sw*0.22); else ctx.rect(legend.x, y, legend.sw, legend.sw);
+        ctx.fill();
+        ctx.fillStyle = C.text;
+        ctx.fillText(data.regionNames[r], legend.x + legend.sw + legend.fsL*0.6, y + legend.sw/2);
+      });
+    }
+    return {canvas, width: canvas.width, height: canvas.height};
+  }
+  // <<EXPORT-CORE-END>>
+
+  function collectExportData(regionFilter){
+    const muns = munPaths
+      .filter(p => !regionFilter || p.getAttribute('data-region') === regionFilter)
+      .map(p => ({ name: p.getAttribute('data-name'), region: p.getAttribute('data-region'), fill: p.getAttribute('fill'), d: p.getAttribute('d') }));
+    const borders = Array.from(document.querySelectorAll('path.region-border'))
+      .filter(b => !regionFilter || b.getAttribute('data-region') === regionFilter)
+      .map(b => ({ d: b.getAttribute('d') }));
+    return { muns, borders, centroids: CENTROIDS, regionNames: REGION_NAMES, regionColors: REGION_COLORS, regionOrder: REGION_ORDER };
+  }
+
+  const exportBtn = document.getElementById('exportBtn');
+  const exportOverlay = document.getElementById('exportOverlay');
+  const exportRegionSelect = document.getElementById('exportRegionSelect');
+  const exportCancel = document.getElementById('exportCancel');
+  const exportConfirm = document.getElementById('exportConfirm');
+  const exportStatus = document.getElementById('exportStatus');
+  const exportScopeRadios = Array.from(document.querySelectorAll('input[name="exportScope"]'));
+  const optNames = document.getElementById('optNames');
+  const optLegend = document.getElementById('optLegend');
+  const optFont = document.getElementById('optFont');
+  const optBg = document.getElementById('optBg');
+  const optQuality = document.getElementById('optQuality');
+
+  function openExportModal(){
+    const regionOk = activeFilter && Array.from(exportRegionSelect.options).some(o => o.value === activeFilter);
+    exportScopeRadios.forEach(r => r.checked = (r.value === (regionOk ? 'region' : 'all')));
+    exportRegionSelect.disabled = !regionOk;
+    if(regionOk) exportRegionSelect.value = activeFilter;
+    // a legenda mostra as cores das regionais; com cidades pintadas ela deixa de descrever o mapa
+    optLegend.checked = Object.keys(customColors).length === 0;
+    exportStatus.hidden = true; exportStatus.textContent = ''; exportStatus.classList.remove('error');
+    exportOverlay.hidden = false;
+  }
+  function closeExportModal(){ exportOverlay.hidden = true; }
+
+  exportBtn.addEventListener('click', openExportModal);
+  exportCancel.addEventListener('click', closeExportModal);
+  exportOverlay.addEventListener('click', (e) => { if(e.target === exportOverlay) closeExportModal(); });
+  exportScopeRadios.forEach(r => r.addEventListener('change', () => {
+    exportRegionSelect.disabled = document.querySelector('input[name="exportScope"]:checked').value !== 'region';
+  }));
+
+  exportConfirm.addEventListener('click', async () => {
+    const scope = document.querySelector('input[name="exportScope"]:checked').value;
+    const region = scope === 'region' ? exportRegionSelect.value : null;
+    exportConfirm.disabled = true; exportCancel.disabled = true;
+    exportStatus.hidden = false; exportStatus.classList.remove('error');
+    exportStatus.textContent = 'Gerando imagem...';
+    try{
+      await new Promise(r => setTimeout(r, 30)); // deixa a mensagem aparecer antes do trabalho pesado
+      const out = renderExport(collectExportData(region), {
+        names: optNames.checked, legend: optLegend.checked,
+        fontUnits: parseFloat(optFont.value), bg: optBg.value, ppu: parseFloat(optQuality.value)
+      });
+      const blob = await new Promise(resolve => out.canvas.toBlob(resolve, 'image/png'));
+      if(!blob) throw new Error('o navegador não conseguiu gerar a imagem (tente uma qualidade menor)');
+      const fname = region ? `mapa-regional-${region}-sergipe.png` : 'mapa-regionais-sergipe.png';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      exportStatus.textContent = `Pronto! ${out.width} × ${out.height} px · download iniciado.`;
+      setTimeout(closeExportModal, 1200);
+    } catch(err){
+      exportStatus.classList.add('error');
+      exportStatus.textContent = 'Não foi possível gerar a imagem: ' + err.message;
+    } finally {
+      exportConfirm.disabled = false; exportCancel.disabled = false;
+    }
+  });
 })();
 </script>
 </body>
